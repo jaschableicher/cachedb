@@ -54,7 +54,7 @@ void TCPServer::run(){
         char buffer[1024];
         while (isRunning) {
             std::memset(buffer, 0, sizeof(buffer));
-            ssize_t bytes_read = read(client_, buffer, sizeof(buffer) - 1);
+            ssize_t bytes_read = recv(client_, buffer, sizeof(buffer) - 1,0);
 
             // Client closed connection or error occurred
             if (bytes_read <= 0) {
@@ -65,7 +65,7 @@ void TCPServer::run(){
             std::string msg(buffer);
             
             std::string reply = std::string(execute_command(db_, msg) + "\n");
-            write(client_, reply.c_str(), std::strlen(reply.c_str()));
+            send(client_, reply.c_str(), std::strlen(reply.c_str()),0);
             
         }
 
