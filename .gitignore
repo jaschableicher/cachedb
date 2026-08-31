@@ -1,0 +1,19 @@
+# Out-of-source build directories
+/build*/
+/out/
+
+# Accidental in-source CMake output
+/.vs/
+/_deps/
+/CMakeCache.txt
+/CMakeFiles/
+/Testing/
+/*.sln
+/*.vcxproj
+/*.vcxproj.filters
+/CTestTestfile.cmake
+/DartConfiguration.tcl
+/Makefile
+/cmake_install.cmake
+/compile_commands.json
+/install_manifest.txt
