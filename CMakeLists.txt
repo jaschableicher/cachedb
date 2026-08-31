@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR
-        "In-source builds are disabled. Use: cmake --preset mingw-debug"
+        "In-source builds are disabled. Use: cmake --preset linux-debug"
     )
 endif()
 
@@ -29,11 +29,13 @@ add_library(cache_db_core
     src/commands/executor.cpp
     src/commands/parser.cpp
     src/database/database.cpp
+    src/server/server.cpp
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/server
 )
 enable_warnings(cache_db_core)
 
@@ -57,10 +59,17 @@ if(BUILD_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
-    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
-    add_executable(db_tests ${TEST_SOURCES})
-    target_link_libraries(db_tests PRIVATE cache_db_core GTest::gtest_main)
-  
-    enable_warnings(db_tests)
-    add_test(NAME db_tests COMMAND db_tests)
+    file(GLOB UNIT_TEST_SOURCES CONFIGURE_DEPENDS tests/unit/*.cpp)
+    add_executable(unit_tests ${UNIT_TEST_SOURCES})
+    target_link_libraries(unit_tests PRIVATE cache_db_core GTest::gtest_main)
+    
+    enable_warnings(unit_tests)
+    add_test(NAME unit_tests COMMAND unit_tests)
+
+    file(GLOB INTEGRATION_TEST_SOURCES CONFIGURE_DEPENDS tests/integration/*.cpp)
+    add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})
+    target_link_libraries(integration_tests PRIVATE cache_db_core GTest::gtest_main)
+    enable_warnings(integration_tests)
+    add_test(NAME integration_tests COMMAND integration_tests)
+    
 endif()

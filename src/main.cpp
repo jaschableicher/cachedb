@@ -1,8 +1,11 @@
 #include <iostream>
 #include "database/database.h"
 #include "executor.h"
-int main() {
-    Database db;
+#include "server/server.h"
+
+void cli(Database& db){
+    
+    
 
     std::string line;
 
@@ -19,4 +22,10 @@ int main() {
 
         std::cout << result << '\n';
     }
+}
+
+int main() {
+    Database db;
+    TCPServer server(db);
+    server.run();
 }

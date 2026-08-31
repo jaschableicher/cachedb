@@ -7,7 +7,7 @@ TEST(CommandTests,parse_set_command){
     EXPECT_EQ(correct_command.type, CommandType::Set);
     EXPECT_EQ(correct_command.args.size(),2);
     EXPECT_EQ(correct_command.args[0],"haja");
-    EXPECT_EQ(correct_command.args[1],"bubu");
+    EXPECT_EQ(correct_command.args[1],"bubu");  
 }
 
 TEST(CommandTests,parse_get_command){

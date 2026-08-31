@@ -7,28 +7,27 @@
   },
   "configurePresets": [
     {
-      "name": "mingw-debug",
-      "displayName": "MinGW Debug",
-      "generator": "MinGW Makefiles",
-      "binaryDir": "${sourceDir}/build",
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/linux-debug",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_COMPILER": "C:/msys64/ucrt64/bin/g++.exe",
-        "CMAKE_MAKE_PROGRAM": "C:/msys64/ucrt64/bin/mingw32-make.exe"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "mingw-debug",
-      "configurePreset": "mingw-debug"
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
     }
   ],
   "testPresets": [
     {
-      "name": "mingw-debug",
-      "configurePreset": "mingw-debug",
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
       "output": {
         "outputOnFailure": true
       }
