@@ -35,9 +35,13 @@ TCPServer::~TCPServer(){
     close(socket_);
 }
 
+void TCPServer::stop(){
+    isRunning=false;
+}
+
 void TCPServer::run(){
-    
-    while(true){
+    isRunning=true;
+    while(isRunning){
         socklen_t client_len = sizeof(client_addr);
 
         std::cout << "Waiting for a client to connect...\n";
@@ -48,7 +52,7 @@ void TCPServer::run(){
         }
         std::cout <<"Client connected" << std::endl;
         char buffer[1024];
-        while (true) {
+        while (isRunning) {
             std::memset(buffer, 0, sizeof(buffer));
             ssize_t bytes_read = read(client_, buffer, sizeof(buffer) - 1);
 
