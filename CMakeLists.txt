@@ -59,10 +59,17 @@ if(BUILD_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
-    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
-    add_executable(db_tests ${TEST_SOURCES})
-    target_link_libraries(db_tests PRIVATE cache_db_core GTest::gtest_main)
-  
-    enable_warnings(db_tests)
-    add_test(NAME db_tests COMMAND db_tests)
+    file(GLOB UNIT_TEST_SOURCES CONFIGURE_DEPENDS tests/unit/*.cpp)
+    add_executable(unit_tests ${UNIT_TEST_SOURCES})
+    target_link_libraries(unit_tests PRIVATE cache_db_core GTest::gtest_main)
+    
+    enable_warnings(unit_tests)
+    add_test(NAME unit_tests COMMAND unit_tests)
+
+    file(GLOB INTEGRATION_TEST_SOURCES CONFIGURE_DEPENDS tests/integration/*.cpp)
+    add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})
+    target_link_libraries(integration_tests PRIVATE cache_db_core GTest::gtest_main)
+    enable_warnings(integration_tests)
+    add_test(NAME integration_tests COMMAND integration_tests)
+    
 endif()
