@@ -12,8 +12,8 @@ std::optional<std::string> Database::get(const std::string& key) const{
 }
 
 bool Database::erase(const std::string& key){
-    auto it = cache_.find(key);
-    if(it==cache_.end()) return false;
+    bool key_exists = cache_.contains(key);
+    if(!key_exists) return false;
     cache_.erase(key);
     return true;
 }
