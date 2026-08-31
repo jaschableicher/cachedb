@@ -57,7 +57,8 @@ if(BUILD_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
-    add_executable(db_tests tests/command_tests.cpp)
+    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
+    add_executable(db_tests ${TEST_SOURCES})
     target_link_libraries(db_tests PRIVATE cache_db_core GTest::gtest_main)
   
     enable_warnings(db_tests)
