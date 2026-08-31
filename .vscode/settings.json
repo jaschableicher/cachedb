@@ -1,8 +1,21 @@
 {
-    "cmake.buildDirectory": "${workspaceFolder}/build",
-    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build/linux-debug",
+    "cmake.configureOnOpen": true,
     "cmake.useCMakePresets": "always",
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/linux-debug/compile_commands.json",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.autocomplete": "default",
+    "C_Cpp.errorSquiggles": "enabled",
+    "editor.quickSuggestions": {
+        "other": "on",
+        "comments": "off",
+        "strings": "off"
+    },
+    "editor.suggestOnTriggerCharacters": true,
     "files.associations": {
         "string": "cpp",
         "string_view": "cpp",
@@ -72,6 +85,7 @@
         "sstream": "cpp",
         "stop_token": "cpp",
         "thread": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "xlocmes": "cpp"
     }
 }

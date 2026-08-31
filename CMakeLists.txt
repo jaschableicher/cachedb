@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR
-        "In-source builds are disabled. Use: cmake --preset mingw-debug"
+        "In-source builds are disabled. Use: cmake --preset linux-debug"
     )
 endif()
 
@@ -29,11 +29,13 @@ add_library(cache_db_core
     src/commands/executor.cpp
     src/commands/parser.cpp
     src/database/database.cpp
+    src/server/server.cpp
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/server
 )
 enable_warnings(cache_db_core)
 
