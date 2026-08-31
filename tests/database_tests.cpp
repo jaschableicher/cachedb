@@ -12,10 +12,8 @@ TEST(DatabaseTest, SetAndGet) {
 
 TEST(DatabaseTest, SetOverwritesValue) {
     Database db;
-
     db.set("x", "1");
     db.set("x", "2");
-
     EXPECT_EQ(db.get("x").value(), "2");
 }
 
