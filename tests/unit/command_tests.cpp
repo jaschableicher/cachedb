@@ -37,3 +37,11 @@ TEST(CommandTests,parse_no_args){
     EXPECT_EQ(emptyArgs.name, "SET");
     EXPECT_EQ(emptyArgs.args.size(),0);
 }
+
+TEST(CommandTests, ignores_trailing_newline) {
+    Command command = parse_command("SET hello world\n");
+    EXPECT_EQ(command.name, "SET");
+    ASSERT_EQ(command.args.size(), 2);
+    EXPECT_EQ(std::get<std::string>(command.args[0]), "hello");
+    EXPECT_EQ(std::get<std::string>(command.args[1]), "world");
+}
