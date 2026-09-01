@@ -52,21 +52,23 @@ void TCPServer::run(){
         }
         std::cout <<"Client connected" << std::endl;
         char buffer[1024];
+        std::string msg;
         while (isRunning) {
             std::memset(buffer, 0, sizeof(buffer));
-            ssize_t bytes_read = read(client_, buffer, sizeof(buffer) - 1);
+            ssize_t bytes_read = recv(client_, buffer, sizeof(buffer) - 1,0);
 
             // Client closed connection or error occurred
             if (bytes_read <= 0) {
                 std::cout << "Client disconnected.\n\n";
                 break; // Break inner loop to accept next client
             }
-
-            std::string msg(buffer);
-            
+            msg+=buffer;
+            if(buffer[bytes_read-1]!='\n'){
+                continue;
+            }            
             std::string reply = std::string(execute_command(db_, msg) + "\n");
-            write(client_, reply.c_str(), std::strlen(reply.c_str()));
-            
+            send(client_, reply.c_str(), std::strlen(reply.c_str()),0);
+            msg.clear();
         }
 
         // Cleanup only the client socket; keep server_fd open

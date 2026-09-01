@@ -3,6 +3,8 @@
 #include "executor.h"
 #include "server/server.h"
 
+void register_commands();
+
 void cli(Database& db){
     
     
@@ -24,7 +26,9 @@ void cli(Database& db){
     }
 }
 
+
 int main() {
+    register_commands();
     Database db;
     TCPServer server(db);
     server.run();

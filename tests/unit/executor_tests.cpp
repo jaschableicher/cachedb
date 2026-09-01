@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 #include "database/database.h"
 #include "commands/executor.h"
+#include "commands/command.h"
 
 TEST(ExecutorTest, SetThenGet) {
+    register_commands();
     Database db;
 
     EXPECT_EQ(

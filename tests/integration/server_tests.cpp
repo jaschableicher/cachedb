@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 
 #include "database/database.h"
+#include "commands/command.h"
 #include "server/server.h"
 
 class ServerIntegrationTest : public ::testing::Test {
@@ -24,6 +25,8 @@ protected:
     static inline std::thread server_thread;
 
     static void SetUpTestSuite() {
+        register_commands();
+
         // Run server on background thread
         server_thread = std::thread([]() {
             server.run();
@@ -84,4 +87,3 @@ TEST_F(ServerIntegrationTest, SetAndGetValue) {
     std::string response2 = SendAndReceive("GET hello\n");
     EXPECT_EQ(response2, "world\n");
 }
-
