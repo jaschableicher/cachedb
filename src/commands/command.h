@@ -2,21 +2,18 @@
 #define COMMAND_H
 
 #include <vector>
-#include <string>
-
-
-#include <vector>
 #include <variant>
 #include <cstdint>
 #include <span>
 #include <functional>
+#include <string>
 #include "database/database.h"
 using Bytes = std::vector<std::byte>;
 using Null = std::monostate;
 
-struct Array;
-struct Map;
-struct Extension;
+struct Array {};
+struct Map {};
+struct Extension {};
 
 using Value = std::variant<
     Null,

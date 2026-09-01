@@ -19,8 +19,8 @@ public:
 
 private:
     static Registry* instance_;
-    Registry();
-    ~Registry();
+    Registry() = default;
+    ~Registry() = default;
     std::unordered_map<std::string, CommandDescriptor> commands_;
     bool value_matches_type(const Value& value, ValueType expected) const;
 };
