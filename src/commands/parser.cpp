@@ -1,4 +1,5 @@
 #include "parser.h"
+
 std::vector<Value> parse_arguments(std::string_view input) {
     std::vector<Value> args;
 
@@ -13,7 +14,7 @@ std::vector<Value> parse_arguments(std::string_view input) {
 
             while (i < input.size() && input[i] != '"') {
                 if (input[i] == '\\' && i + 1 < input.size()) {
-                    ++i;
+                    i++;
 
                     switch (input[i]) {
                         case 'n': arg += '\n'; break;
@@ -26,7 +27,7 @@ std::vector<Value> parse_arguments(std::string_view input) {
                     arg += input[i];
                 }
 
-                ++i;
+                i++;
             }
 
             if (i < input.size() && input[i] == '"') ++i;
