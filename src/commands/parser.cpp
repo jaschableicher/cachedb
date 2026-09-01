@@ -24,11 +24,11 @@ Command parse_command(std::string_view input){
     std::size_t argument_start = rest_of_input.find_first_not_of(" \t\n\r\f\v");
     while(argument_start != std::string_view::npos){
         const auto argument_end = rest_of_input.find_first_of(" \t\n\r\f\v", argument_start);
-        command.args.emplace_back(rest_of_input.substr(
+        command.args.emplace_back(std::string(rest_of_input.substr(
             argument_start,
             argument_end == std::string_view::npos
                 ? std::string_view::npos
-                : argument_end - argument_start));
+                : argument_end - argument_start)));
 
         if(argument_end == std::string_view::npos) break;
         argument_start = rest_of_input.find_first_not_of(" \t\n\r\f\v", argument_end);
