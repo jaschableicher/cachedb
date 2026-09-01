@@ -26,8 +26,11 @@ function(enable_warnings target)
 endfunction()
 
 add_library(cache_db_core
+    src/commands/command.cpp
     src/commands/executor.cpp
     src/commands/parser.cpp
+    src/commands/registry.cpp
+    src/commands/utils.cpp
     src/database/database.cpp
     src/server/server.cpp
 )
