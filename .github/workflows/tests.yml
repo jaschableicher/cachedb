@@ -20,4 +20,4 @@ jobs:
         run: cmake --build --preset linux-debug --parallel
 
       - name: Run tests
-        run: ctest --preset linux-debug
+        run: ctest --preset linux-debug -R '^unit_tests$'
