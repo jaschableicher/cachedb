@@ -30,11 +30,15 @@ private:
     bool is_running_;
 
     int socket_=-1;
-   
+    int epoll_fd;
     uint16_t tcp_port_ = 5634; //standard port
     struct sockaddr_in server_addr;
-    std::vector<std::jthread> client_threads_;
-    std::vector<int> client_fds_;
+
+
+    std::unordered_map<int,std::string> message_pool;//<client_fd,msg>
+
+    bool handle_new_client();
+    void handle_data(int client_fd);
 
 };
 
