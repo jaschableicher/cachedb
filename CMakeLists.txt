@@ -47,7 +47,7 @@ target_link_libraries(cache_db PRIVATE cache_db_core)
 enable_warnings(cache_db)
 
 option(BUILD_BENCHMARKS "Build standalone benchmark executables" OFF)
-#-DBUILD_BENCHMARKS=ON
+#cmake --preset linux-debug -DBUILD_BENCHMARKS=ON
 if(BUILD_BENCHMARKS)
     find_package(Threads REQUIRED)
 

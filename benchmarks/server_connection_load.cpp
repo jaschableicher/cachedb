@@ -74,14 +74,11 @@ bool parse_options(int argc, char* argv[], Options& options) {
         unsigned long long parsed = 0;
         if (argument == "--host") {
             options.host = value;
-        } else if (argument == "--port" && parse_positive_number(value, parsed)
-                   && parsed <= std::numeric_limits<unsigned short>::max()) {
+        } else if (argument == "--port" && parse_positive_number(value, parsed) && parsed <= std::numeric_limits<unsigned short>::max()) {
             options.port = static_cast<unsigned short>(parsed);
-        } else if (argument == "--clients" && parse_positive_number(value, parsed)
-                   && parsed <= std::numeric_limits<std::size_t>::max()) {
+        } else if (argument == "--clients" && parse_positive_number(value, parsed)&& parsed <= std::numeric_limits<std::size_t>::max()) {
             options.clients = static_cast<std::size_t>(parsed);
-        } else if (argument == "--timeout-ms" && parse_positive_number(value, parsed)
-                   && parsed <= static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+        } else if (argument == "--timeout-ms" && parse_positive_number(value, parsed) && parsed <= static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
             options.timeout_ms = static_cast<int>(parsed);
         } else {
             return false;
