@@ -3,7 +3,7 @@
 #include "server.h"
 
 
-TCPServer::TCPServer(Database& db): db_(db){ 
+TCPServer::TCPServer(Database& db): db_(db), is_running_(false){ 
     //initialize tcp server with a port to listen to
     socket_=socket(AF_INET, SOCK_STREAM, 0);//SOCK_DGRAM for udp
     //TODO: Error Handling
@@ -31,47 +31,78 @@ TCPServer::TCPServer(Database& db): db_(db){
 }
 
 TCPServer::~TCPServer(){ 
-    close(client_);//If a client exists 
-    close(socket_);
+
+    stop();
 }
 
 void TCPServer::stop(){
-    isRunning=false;
+    
+    is_running_=false;
+    if (socket_ >= 0) {
+        ::shutdown(socket_, SHUT_RDWR);
+        ::close(socket_);
+        socket_ = -1;
+    }
+    for(int client_fd : client_fds_) {
+        close(client_fd); //unblocks recv
+    }
+    std::cout << "Waiting for " << client_threads_.size() << " clients to disconnect...\n";
+    client_threads_.clear(); 
+    std::cout << "Server completely stopped.\n";
 }
 
 void TCPServer::run(){
-    isRunning=true;
-    while(isRunning){
+    is_running_=true;
+    while(is_running_){
+
+        std::erase_if(client_threads_, [](std::jthread& t) {
+            // If a jthread cannot request a stop, it means it already finished
+            return !t.get_stop_source().stop_possible();
+        });
+
         socklen_t client_len = sizeof(client_addr);
 
         std::cout << "Waiting for a client to connect...\n";
-        client_= accept(socket_, (struct sockaddr*)&client_addr, &client_len);
-        if (client_ < 0) {
+        int new_client= accept(socket_, (struct sockaddr*)&client_addr, &client_len);
+        if (new_client < 0) {
+            if (!is_running_) {
+                std::cout << "Server stopping, accept unblocked cleanly.\n";
+                break; 
+            }
             std::cerr << "Accept failed\n";
             continue; // Retry accepting next client
         }
-        std::cout <<"Client connected" << std::endl;
-        char buffer[1024];
-        std::string msg;
-        while (isRunning) {
-            std::memset(buffer, 0, sizeof(buffer));
-            ssize_t bytes_read = recv(client_, buffer, sizeof(buffer) - 1,0);
-
-            // Client closed connection or error occurred
-            if (bytes_read <= 0) {
-                std::cout << "Client disconnected.\n\n";
-                break; // Break inner loop to accept next client
-            }
-            msg+=buffer;
-            if(buffer[bytes_read-1]!='\n'){
-                continue;
-            }            
-            std::string reply = std::string(execute_command(db_, msg) + "\n");
-            send(client_, reply.c_str(), std::strlen(reply.c_str()),0);
-            msg.clear();
-        }
-
-        // Cleanup only the client socket; keep server_fd open
-        close(client_);
+        //Add new thread
+        client_fds_.push_back(new_client); // Track it so stop() can close it!
+    
+        client_threads_.emplace_back([this](std::stop_token stoken, int client_fd) {
+            this->handle_client(stoken, client_fd);
+        }, new_client);
     }
+   
+}
+
+void TCPServer::handle_client(std::stop_token stoken,int client){
+    std::cout <<"Client connected" << std::endl;
+    char buffer[1024];
+    std::string msg;
+    while (!stoken.stop_requested()) {
+        std::memset(buffer, 0, sizeof(buffer));
+        ssize_t bytes_read = recv(client, buffer, sizeof(buffer) - 1,0);
+
+        // Client closed connection or error occurred
+        if (bytes_read <= 0) {
+            std::cout << "Client disconnected.\n";
+            break; // Break inner loop to accept next client
+        }
+        msg+=buffer;
+        if(buffer[bytes_read-1]!='\n'){
+            continue;
+        }            
+        std::string reply = std::string(execute_command(db_, msg) + "\n");
+        send(client, reply.c_str(), std::strlen(reply.c_str()),0);
+        msg.clear();
+    }
+    // Cleanup only the client socket; 
+    close(client);
 }

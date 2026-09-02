@@ -3,7 +3,7 @@
 #include <string>
 #include <optional>
 #include <unordered_map>
-
+#include <mutex>
 class Database {
 public:
     void set(std::string key, std::string value);
@@ -15,6 +15,7 @@ public:
     bool erase(const std::string& key);
 
 private:
+    mutable std::mutex cache_mutex_;
     std::unordered_map<std::string, std::string> cache_;
 };
 

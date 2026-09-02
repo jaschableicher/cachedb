@@ -37,6 +37,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        std::cout <<"Stopping test suite" << std::endl;
         server.stop();
         if (server_thread.joinable()) {
             server_thread.join();
