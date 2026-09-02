@@ -9,10 +9,11 @@ std::vector<Value> parse_arguments(std::string_view input) {
 
         std::string arg;
 
-        if (input[i] == '"') {
+        if (std::string_view("\"'").find(input[i]) != std::string_view::npos) {
+            char quotation = input[i];
             ++i;
 
-            while (i < input.size() && input[i] != '"') {
+            while (i < input.size() && input[i] != quotation) {
                 if (input[i] == '\\' && i + 1 < input.size()) {
                     i++;
 
@@ -20,6 +21,7 @@ std::vector<Value> parse_arguments(std::string_view input) {
                         case 'n': arg += '\n'; break;
                         case 't': arg += '\t'; break;
                         case '"': arg += '"'; break;
+                        case '\'':   arg += '\''; break;
                         case '\\': arg += '\\'; break;
                         default: arg += input[i]; break;
                     }
@@ -30,7 +32,7 @@ std::vector<Value> parse_arguments(std::string_view input) {
                 i++;
             }
 
-            if (i < input.size() && input[i] == '"') ++i;
+            if (i < input.size() && input[i] == quotation) ++i;
         } else {
             while (i < input.size() && !std::isspace(static_cast<unsigned char>(input[i]))) {
                 arg += input[i++];
