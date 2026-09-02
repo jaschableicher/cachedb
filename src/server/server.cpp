@@ -46,7 +46,7 @@ TCPServer::~TCPServer(){
 
 void TCPServer::stop(){
     
-    is_running_=false;
+    is_running_.store(false);
     if (socket_ >= 0) {
         ::shutdown(socket_, SHUT_RDWR);
         ::close(socket_);
@@ -57,7 +57,7 @@ void TCPServer::stop(){
 }
 
 void TCPServer::run(){
-    is_running_=true;
+    is_running_.store(true);
 
     struct epoll_event event, events[MAX_CLIENTS];
     event.events = EPOLLIN;
@@ -76,7 +76,7 @@ void TCPServer::run(){
 	}
 	
 
-    while(is_running_){
+    while(is_running_.load()){
         int event_count = epoll_wait(epoll_fd, events, MAX_CLIENTS, -1);//No timeout for now as it can be running without requests for a while!
         for (int i = 0; i < event_count; i++) {
             if (events[i].data.fd == socket_) {

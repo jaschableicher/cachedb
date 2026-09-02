@@ -27,7 +27,7 @@ public:
     void stop();
 private:
     Database& db_;
-    bool is_running_;
+    std::atomic<bool> is_running_;
 
     int socket_=-1;
     int epoll_fd;
