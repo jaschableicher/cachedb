@@ -46,6 +46,16 @@ add_executable(cache_db src/main.cpp)
 target_link_libraries(cache_db PRIVATE cache_db_core)
 enable_warnings(cache_db)
 
+option(BUILD_BENCHMARKS "Build standalone benchmark executables" OFF)
+#-DBUILD_BENCHMARKS=ON
+if(BUILD_BENCHMARKS)
+    find_package(Threads REQUIRED)
+
+    add_executable(server_connection_load benchmarks/server_connection_load.cpp)
+    target_link_libraries(server_connection_load PRIVATE Threads::Threads)
+    enable_warnings(server_connection_load)
+endif()
+
 if(BUILD_TESTING)
     # Prefer an installed package, but make a clean checkout self-contained.
     find_package(GTest CONFIG QUIET)
