@@ -23,7 +23,7 @@ struct Options {
     std::string host = "127.0.0.1";
     unsigned short port = 5634;
     std::size_t clients = 100;
-    int timeout_ms = 1'000;
+    int timeout_ms = 15'000;
 };
 
 struct Results {

@@ -1,7 +1,15 @@
 //When running for now simply takes in a line which is brought in, executes the command via executor and sends the result back, that is it
 //For now only one connection possible!
 #include "server.h"
+int MAX_CLIENTS=5000;
 
+
+#include <fcntl.h>
+
+void set_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
 
 TCPServer::TCPServer(Database& db): db_(db), is_running_(false){ 
     //initialize tcp server with a port to listen to
@@ -20,18 +28,18 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(false){
     server_addr.sin_port = htons(tcp_port_);
     if (bind(socket_, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         //TODO: Error Handling
-        throw std::runtime_error("Bind failed");
+        throw std::runtime_error("Cannot bind to Port: " +  std::to_string(tcp_port_));
         return;
     }
 
      if (listen(socket_, 3) < 0) {
-        throw std::runtime_error("Listen failed");
+        throw std::runtime_error("Listening to port " + std::to_string(tcp_port_) + " failed");
         return;
     }
+    set_nonblocking(socket_);
 }
 
 TCPServer::~TCPServer(){ 
-
     stop();
 }
 
@@ -53,56 +61,71 @@ void TCPServer::stop(){
 
 void TCPServer::run(){
     is_running_=true;
+
+    struct epoll_event event, events[MAX_CLIENTS];
+    event.events = EPOLLIN;
+	event.data.fd = socket_;
+	int epoll_fd = epoll_create1(0);
+
+	if (epoll_fd == -1) {
+		std::cerr << "Failed to create epoll file descriptor\n";
+		return;
+	}
+    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_, &event))
+	{
+		close(epoll_fd);
+        std::cerr << "Failed to add file descriptor to epoll\n";
+		return;
+	}
+	
+
+    std::unordered_map<int,std::string> message_pool;//<client_fd,msg>
     while(is_running_){
+        int event_count = epoll_wait(epoll_fd, events, MAX_CLIENTS, -1);//No timeout for now as it can be running without requests for a while!
+        for (int i = 0; i < event_count; i++) {
+            if (events[i].data.fd == socket_) {
+                struct sockaddr_in client_addr;
+                socklen_t client_len = sizeof(client_addr);
+                
+                // Accept the connection (non-blocking is highly recommended here)
+                int new_client = accept(socket_, (struct sockaddr*)&client_addr, &client_len);
+                if (new_client == -1) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) break; //pending connections
+                    perror("accept failed");
+                    continue;
+                }
 
-        std::erase_if(client_threads_, [](std::jthread& t) {
-            // If a jthread cannot request a stop, it means it already finished
-            return !t.get_stop_source().stop_possible();
-        });
+                // Register this NEW client socket with epoll to monitor it for data
+                set_nonblocking(new_client);
+                struct epoll_event client_ev;
+                client_ev.events = EPOLLIN;         // Trigger when client sends data
+                client_ev.data.fd = new_client;     // Save the client FD
 
-        socklen_t client_len = sizeof(client_addr);
-
-        std::cout << "Waiting for a client to connect...\n";
-        int new_client= accept(socket_, (struct sockaddr*)&client_addr, &client_len);
-        if (new_client < 0) {
-            if (!is_running_) {
-                std::cout << "Server stopping, accept unblocked cleanly.\n";
-                break; 
+                epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_client, &client_ev);
+                
             }
-            std::cerr << "Accept failed\n";
-            continue; // Retry accepting next client
+            else{
+                int client_fd = events[i].data.fd;
+                char buffer[1024];
+                
+                std::memset(buffer, 0, sizeof(buffer));
+                ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1,0);
+
+                // Client closed connection or error occurred
+                if (bytes_read <= 0) {
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+                    close(client_fd);
+                }
+                message_pool[client_fd]+=buffer;
+                if(buffer[bytes_read-1]!='\n'){
+                    continue;
+                }            
+                std::string reply = std::string(execute_command(db_, message_pool[client_fd]) + "\n");
+                send(client_fd, reply.c_str(), std::strlen(reply.c_str()),0);
+                message_pool[client_fd].clear();
+            }
+            //TODO: client does not close currently!
         }
-        //Add new thread
-        client_fds_.push_back(new_client); // Track it so stop() can close it!
-    
-        client_threads_.emplace_back([this](std::stop_token stoken, int client_fd) {
-            this->handle_client(stoken, client_fd);
-        }, new_client);
     }
    
-}
-
-void TCPServer::handle_client(std::stop_token stoken,int client){
-    std::cout <<"Client connected" << std::endl;
-    char buffer[1024];
-    std::string msg;
-    while (!stoken.stop_requested()) {
-        std::memset(buffer, 0, sizeof(buffer));
-        ssize_t bytes_read = recv(client, buffer, sizeof(buffer) - 1,0);
-
-        // Client closed connection or error occurred
-        if (bytes_read <= 0) {
-            std::cout << "Client disconnected.\n";
-            break; // Break inner loop to accept next client
-        }
-        msg+=buffer;
-        if(buffer[bytes_read-1]!='\n'){
-            continue;
-        }            
-        std::string reply = std::string(execute_command(db_, msg) + "\n");
-        send(client, reply.c_str(), std::strlen(reply.c_str()),0);
-        msg.clear();
-    }
-    // Cleanup only the client socket; 
-    close(client);
 }
