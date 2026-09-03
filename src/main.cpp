@@ -2,7 +2,7 @@
 #include "database/database.h"
 #include "executor.h"
 #include "server/server.h"
-
+#include <thread>
 void register_commands();
 
 void cli(Database& db){
@@ -31,5 +31,9 @@ int main() {
     register_commands();
     Database db;
     TCPServer server(db);
-    server.run();
+    std::thread server_thread(&TCPServer::run, &server);
+
+
+   cli(db);
+   server_thread.join();
 }
