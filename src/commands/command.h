@@ -7,8 +7,9 @@
 #include <span>
 #include <functional>
 #include <string>
-#include "database/database.h"
 #include "value.h"
+
+class Database;
 
 
 

@@ -1,4 +1,5 @@
 #include "registry.h"
+#include "../database/database.h"
 
 void register_commands() {
     Registry* registry = Registry::get_instance();

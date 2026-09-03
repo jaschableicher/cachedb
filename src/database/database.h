@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <mutex>
 #include "hashtable.h"
-#include "command.h"
+#include "../commands/value.h"
 class Database {
 public:
     void set(std::string key, Value value);
