@@ -13,7 +13,6 @@ void cli(Database& db){
 
     while (true) {
         std::cout << "> ";
-
         if (!std::getline(std::cin, line))
             break;
 
