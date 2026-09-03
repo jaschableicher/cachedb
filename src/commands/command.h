@@ -8,25 +8,7 @@
 #include <functional>
 #include <string>
 #include "database/database.h"
-using Bytes = std::vector<std::byte>;
-using Null = std::monostate;
-
-struct Array {};
-struct Map {};
-struct Extension {};
-
-using Value = std::variant<
-    Null,
-    bool,
-    int64_t,
-    uint64_t,
-    double,
-    std::string,
-    Bytes,
-    Array,
-    Map,
-    Extension
->;
+#include "value.h"
 
 
 
@@ -51,18 +33,7 @@ struct CommandContext {
 using CommandHandler =
     std::function<Value(CommandContext&, std::span<const Value>)>;
 
-enum class ValueType {
-    Null,
-    Bool,
-    Int64,
-    UInt64,
-    Double,
-    String,
-    Bytes,
-    Array,
-    Map,
-    Extension
-};
+
 
 struct ArgumentSpec {
     ValueType type; // E.g. ValueType::String
