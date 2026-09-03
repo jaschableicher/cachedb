@@ -31,9 +31,9 @@ public:
         bucket.push_back({key, value});
     }
 
-    V* find(const std::string&key) const{
-        auto& bucket = buckets_[index(key)];
-        for(auto& entry : bucket){
+    const V* find(const std::string&key) const{
+        const auto& bucket = buckets_[index(key)];
+        for(const auto& entry : bucket){
             if(entry.key == key){
                 return &entry.value;
             }

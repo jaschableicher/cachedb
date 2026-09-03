@@ -7,7 +7,7 @@ void Database::set(std::string key, Value value) {
 
 std::optional<Value> Database::get(const std::string& key) const{
     std::scoped_lock lock(cache_mutex_);
-    Value* value = cache_.find(key);
+    const Value* value = cache_.find(key);
     if(value == nullptr) return std::nullopt;
     return *value;    
 }
