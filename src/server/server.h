@@ -39,7 +39,7 @@ private:
 
     bool handle_new_client();
     void handle_data(int client_fd);
-
+    void set_nonblocking(int fd);
 };
 
 
