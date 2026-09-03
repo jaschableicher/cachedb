@@ -4,11 +4,13 @@
 #include <optional>
 #include <unordered_map>
 #include <mutex>
+#include "hashtable.h"
+#include "../commands/value.h"
 class Database {
 public:
-    void set(std::string key, std::string value);
+    void set(std::string key, Value value);
 
-    std::optional<std::string> get(
+    std::optional<Value> get(
         const std::string& key
     ) const;
 
@@ -16,7 +18,7 @@ public:
 
 private:
     mutable std::mutex cache_mutex_;
-    std::unordered_map<std::string, std::string> cache_;
+    HashTable<Value> cache_;
 };
 
 #endif

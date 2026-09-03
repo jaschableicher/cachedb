@@ -6,15 +6,21 @@ TEST(DatabaseTest, SetAndGet) {
 
     db.set("name", "alice");
 
-    ASSERT_TRUE(db.get("name").has_value());
-    EXPECT_EQ(db.get("name").value(), "alice");
+    const auto value = db.get("name");
+    ASSERT_TRUE(value.has_value());
+    ASSERT_TRUE(std::holds_alternative<std::string>(*value));
+    EXPECT_EQ(std::get<std::string>(*value), "alice");
 }
 
 TEST(DatabaseTest, SetOverwritesValue) {
     Database db;
     db.set("x", "1");
     db.set("x", "2");
-    EXPECT_EQ(db.get("x").value(), "2");
+
+    const auto value = db.get("x");
+    ASSERT_TRUE(value.has_value());
+    ASSERT_TRUE(std::holds_alternative<std::string>(*value));
+    EXPECT_EQ(std::get<std::string>(*value), "2");
 }
 
 TEST(DatabaseTest, MissingKeyReturnsNullopt) {
@@ -38,6 +44,8 @@ TEST(DatabaseTest, HandlesBinaryData) {
 
     db.set("binary", binary_value);
 
-    ASSERT_TRUE(db.get("binary").has_value());
-    EXPECT_EQ(db.get("binary").value(), binary_value);
+    const auto value = db.get("binary");
+    ASSERT_TRUE(value.has_value());
+    ASSERT_TRUE(std::holds_alternative<std::string>(*value));
+    EXPECT_EQ(std::get<std::string>(*value), binary_value);
 }

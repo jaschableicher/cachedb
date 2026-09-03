@@ -1,3 +1,6 @@
+#ifndef REGISTRY_H
+#define REGISTRY_H
+
 //command registry
 #include <unordered_map>
 #include <string>
@@ -24,3 +27,5 @@ private:
     std::unordered_map<std::string, CommandDescriptor> commands_;
     bool value_matches_type(const Value& value, ValueType expected) const;
 };
+
+#endif
