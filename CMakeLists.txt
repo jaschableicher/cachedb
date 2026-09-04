@@ -32,6 +32,7 @@ add_library(cache_db_core
     src/commands/registry.cpp
     src/commands/utils.cpp
     src/database/database.cpp
+    src/database/hashtable.cpp
     src/server/server.cpp
     src/server/client.cpp
 )

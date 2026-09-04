@@ -26,6 +26,7 @@ private:
     ~Registry() = default;
     std::unordered_map<std::string, CommandDescriptor> commands_;
     bool value_matches_type(const Value& value, ValueType expected) const;
+    bool coerce_value(Value& value, ValueType expected) const;
 };
 
 #endif

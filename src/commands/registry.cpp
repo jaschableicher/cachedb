@@ -1,4 +1,6 @@
 #include "registry.h"
+
+#include <charconv>
 #include <iostream>
 Registry* Registry::instance_=nullptr;
 
@@ -58,10 +60,9 @@ Value Registry::execute( CommandContext& context,const Command& command) const{
         );
     }
 
-    for ( std::size_t i = 0; i < command.args.size();++i ) {
-        if (!value_matches_type(
-                command.args[i],
-                descriptor->arguments[i].type))
+    auto args = command.args;
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (!coerce_value(args[i], descriptor->arguments[i].type))
         {
             return std::string(
                 "ERR invalid argument type at index " +
@@ -72,8 +73,31 @@ Value Registry::execute( CommandContext& context,const Command& command) const{
 
     return descriptor->handler(
         context,
-        command.args
+        args
     );
+}
+
+bool Registry::coerce_value(Value& value, ValueType expected) const
+{
+    if (value_matches_type(value, expected)) {
+        return true;
+    }
+
+    const auto* text = std::get_if<std::string>(&value);
+    if (text == nullptr || expected != ValueType::Int64) {
+        return false;
+    }
+
+    std::int64_t parsed = 0;
+    const char* begin = text->data();
+    const char* end = begin + text->size();
+    const auto [position, error] = std::from_chars(begin, end, parsed);
+    if (error != std::errc{} || position != end) {
+        return false;
+    }
+
+    value = parsed;
+    return true;
 }
 
 bool Registry::value_matches_type(const Value& value, ValueType expected) const
