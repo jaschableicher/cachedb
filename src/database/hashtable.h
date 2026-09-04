@@ -1,55 +1,37 @@
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
-#include "value.h"
-#include <iostream>
+
+#include <cstddef>
+#include <cstdint>
 #include <list>
-template<typename V>
+#include <optional>
+#include <string>
+#include <vector>
+
+template <typename V>
 class HashTable {
 private:
+    struct Val {
+        V value;
+        std::optional<std::int64_t> expiry;
+    };
     struct Entry {
         std::string key;
-        V value;
+        Val data;
     };
 
-    std::vector<std::list<Entry>> buckets_;
-    std::size_t index(const std::string& key) const{
-        return std::hash<std::string>{}(key) % buckets_.size();
-    }
+    mutable std::vector<std::list<Entry>> buckets_;
+    std::size_t index(const std::string& key) const;
+
 public:
-    explicit HashTable(std::size_t bucket_count = 16) : buckets_(std::max<std::size_t>(bucket_count, 1)){}
-    
-    void insert(const std::string& key, const V& value){
-        auto& bucket = buckets_[index(key)];
 
-        for(auto& entry : bucket){
-            if(entry.key==key){
-                entry.value=value;
-                return;
-            }
-        }
+    explicit HashTable(std::size_t bucket_count = 16);
 
-        bucket.push_back({key, value});
-    }
-
-    const V* find(const std::string&key) const{
-        const auto& bucket = buckets_[index(key)];
-        for(const auto& entry : bucket){
-            if(entry.key == key){
-                return &entry.value;
-            }
-        }
-        return nullptr;
-    }
-
-    bool erase(const std::string& key){
-        auto& bucket = buckets_[index(key)];
-        for(auto it = bucket.begin();it != bucket.end();++it){
-            if(it->key == key){
-                bucket.erase(it);
-                return true;
-            }
-        }
-        return false;
-    }
+    void insert(const std::string& key, const V& value);
+    const V* find(const std::string& key) const;
+    bool erase(const std::string& key);
+    bool set_expiry(const std::string& key, std::int64_t expiry);
+    void erase_expired();
 };
+
 #endif
