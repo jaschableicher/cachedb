@@ -46,4 +46,21 @@ void register_commands() {
             return int64_t{ctx.db.erase(key) ? 1 : 0};
         }
     });
+
+    registry->register_command({
+        .id=4,
+        .name="EXPIRE",
+        .arguments = {
+            { ValueType::String, false },
+            { ValueType::Int64, false }
+        },
+        .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
+            const auto& key = std::get<std::string>(args[0]);
+            const auto& expires_in_seconds = std::get<int64_t>(args[1]);
+            if(ctx.db.set_expiry(key, expires_in_seconds).has_value()){
+                return expires_in_seconds;
+            }
+            return -1;
+        }
+    });
 }
