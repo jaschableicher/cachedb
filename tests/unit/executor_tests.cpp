@@ -25,6 +25,26 @@ TEST(ExecutorTest, SetThenGet) {
     );
 }
 
+TEST(ExecutorTest, ExpireAcceptsIntegerText) {
+    ensure_commands_registered();
+    Database db;
+
+    ASSERT_EQ(execute_command(db, "SET temporary value"), "OK");
+    EXPECT_EQ(execute_command(db, "EXPIRE temporary 10"), "10");
+    EXPECT_EQ(execute_command(db, "GET temporary"), "value");
+}
+
+TEST(ExecutorTest, ExpireRejectsNonIntegerText) {
+    ensure_commands_registered();
+    Database db;
+
+    ASSERT_EQ(execute_command(db, "SET temporary value"), "OK");
+    EXPECT_EQ(
+        execute_command(db, "EXPIRE temporary 10seconds"),
+        "ERR invalid argument type at index 1"
+    );
+}
+
 TEST(ExecutorTest, SetThenGetPreservesBinaryData) {
     ensure_commands_registered();
     Database db;
