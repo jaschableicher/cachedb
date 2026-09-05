@@ -12,14 +12,14 @@ public:
 
     std::optional<Value> get(
         const std::string& key
-    ) const;
+    );
 
     bool erase(const std::string& key);
     std::optional<int64_t> set_expiry(
         const std::string& key,
         int64_t expires_in_seconds
     );
-    int64_t get_expiry(const std::string& key) const;
+    int64_t get_expiry(const std::string& key);
 private:
     struct Val{
         Value data;
@@ -27,6 +27,8 @@ private:
     };
     mutable std::mutex cache_mutex_;
     mutable HashTable<Val> cache_;
+
+    bool delete_if_expired(const Val* cache_value, const std::string& key);
 };
 
 #endif
