@@ -63,4 +63,23 @@ void register_commands() {
             return -1;
         }
     });
+
+    registry->register_command({
+        .id=5,
+        .name="TTL",
+        .arguments = {
+            { ValueType::String, false }
+        },
+        .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
+            const auto& key = std::get<std::string>(args[0]);
+            
+            auto value = ctx.db.get_expiry(key);
+
+            if (value==-1) return Null{};
+            //calculate sedconds from now
+            const auto epoch_now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch());
+            const std::int64_t expires_in_seconds = value- epoch_now.count() ;
+            return expires_in_seconds;
+        }
+    });
 }
