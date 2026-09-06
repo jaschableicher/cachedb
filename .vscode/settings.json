@@ -1,10 +1,23 @@
 {
     "cmake.buildDirectory": "${workspaceFolder}/build/linux-debug",
     "cmake.configureOnOpen": true,
+    "cmake.configureOnEdit": true,
     "cmake.useCMakePresets": "always",
     "C_Cpp.default.compilerPath": "/usr/bin/g++",
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/linux-debug/compile_commands.json",
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}",
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/src/commands",
+        "${workspaceFolder}/src/database",
+        "${workspaceFolder}/src/server"
+    ],
+    "C_Cpp.default.browse.path": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/benchmarks"
+    ],
+    "C_Cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "C_Cpp.default.cppStandard": "c++20",
     "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
     "C_Cpp.intelliSenseEngine": "default",
@@ -16,7 +29,12 @@
         "strings": "off"
     },
     "editor.suggestOnTriggerCharacters": true,
+    "C_Cpp.files.exclude": {
+        "**/build/**": true,
+        "**/out/**": true
+    },
     "files.associations": {
+        "*.h": "cpp",
         "string": "cpp",
         "string_view": "cpp",
         "array": "cpp",
