@@ -53,7 +53,6 @@ public:
         }
         return false;
     }
-
 };
 
 template <typename V>

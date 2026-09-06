@@ -34,6 +34,7 @@ add_library(cache_db_core
     src/database/database.cpp
     src/server/server.cpp
     src/server/client.cpp
+    src/database/expiration.cpp
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
