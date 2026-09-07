@@ -35,12 +35,14 @@ add_library(cache_db_core
     src/server/server.cpp
     src/server/client.cpp
     src/database/expiration.cpp
+    src/logger/aol.cpp
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/commands
     ${CMAKE_CURRENT_SOURCE_DIR}/src/server
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/logger
 )
 enable_warnings(cache_db_core)
 
