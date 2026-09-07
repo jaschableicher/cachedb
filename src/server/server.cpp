@@ -12,7 +12,7 @@ void TCPServer::set_nonblocking(int fd) {
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-TCPServer::TCPServer(Database& db): db_(db), is_running_(false){ 
+TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     //initialize tcp server with a port to listen to
     socket_=socket(AF_INET, SOCK_STREAM, 0);//SOCK_DGRAM for udp
     //TODO: Error Handling
@@ -42,11 +42,12 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(false){
 
 TCPServer::~TCPServer(){ 
     stop();
-}
-
-void TCPServer::stop(){
-    
-    is_running_.store(false);
+    for (const auto& client : message_pool) {
+        ::close(client.first);
+    }
+    if (epoll_fd >= 0) {
+        ::close(epoll_fd);
+    }
     if (socket_ >= 0) {
         ::shutdown(socket_, SHUT_RDWR);
         ::close(socket_);
@@ -56,8 +57,13 @@ void TCPServer::stop(){
     std::cout << "Server completely stopped.\n";
 }
 
+void TCPServer::stop(){
+    is_running_.store(false);
+}
+
 void TCPServer::run(){
-    is_running_.store(true);
+    // Preserve a stop request made before this thread started.
+    if (!is_running_.load()) return;
 
     struct epoll_event event, events[MAX_CLIENTS];
     event.events = EPOLLIN;
@@ -71,14 +77,21 @@ void TCPServer::run(){
     if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_, &event))
 	{
 		close(epoll_fd);
+        epoll_fd = -1;
         std::cerr << "Failed to add file descriptor to epoll\n";
 		return;
 	}
 	
 
     while(is_running_.load()){
-        int event_count = epoll_wait(epoll_fd, events, MAX_CLIENTS, -1);//No timeout for now as it can be running without requests for a while!
-        for (int i = 0; i < event_count; i++) {
+        // Wake periodically so stop() also works with no client traffic.
+        int event_count = epoll_wait(epoll_fd, events, MAX_CLIENTS, 100);
+        if (event_count < 0) {
+            if (errno == EINTR) continue;
+            std::cerr << "epoll_wait failed: " << std::strerror(errno) << '\n';
+            break;
+        }
+        for (int i = 0; i < event_count && is_running_.load(); i++) {
             if (events[i].data.fd == socket_) {
                 if(handle_new_client()) break;    
             }
@@ -89,4 +102,3 @@ void TCPServer::run(){
     }
    
 }
-

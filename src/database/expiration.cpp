@@ -1,6 +1,6 @@
 #include "database.h"
 #include <iostream>
-
+#include "logger/logger.h"
 
 void Database::active_expiration_check(){
     while(running_.load()){
@@ -18,6 +18,8 @@ void Database::active_expiration_check(){
             if(cached_val!=nullptr && cached_val->version==item.version){
    
                 cache_.erase(item.key);
+                std::string command = "DEL "+item.key+"\n";
+                Logger::get_instance()->log_command(command);
             }
         }
         
@@ -59,6 +61,8 @@ bool Database::delete_if_expired(const Val* cache_val, const std::string& key){
         if(cache_val->expiry.value()<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()){
             //delete value 
             cache_.erase(key);
+            std::string command = "DEL "+key+"\n";
+            Logger::get_instance()->log_command(command);
             return true;
         }
     }

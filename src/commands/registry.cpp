@@ -31,7 +31,7 @@ Value Registry::execute( CommandContext& context,const Command& command) const{
 
     if (!descriptor) {
         return std::string(
-            "Error unknown command '" +
+            "ERR unknown command '" +
             command.name +
             "'"
         );
@@ -47,14 +47,14 @@ Value Registry::execute( CommandContext& context,const Command& command) const{
 
     if (command.args.size() < required_arguments) {
         return std::string(
-            "Error too few arguments for '" + std::string(descriptor->name) +"'"
+            "ERR too few arguments for '" + std::string(descriptor->name) +"'"
         );
     }
 
     if (command.args.size() >descriptor->arguments.size())
     {
         return std::string(
-            "Error too many arguments for '" +
+            "ERR too many arguments for '" +
             std::string(descriptor->name) +
             "'"
         );
