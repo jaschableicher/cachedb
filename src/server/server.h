@@ -23,6 +23,7 @@ class TCPServer{
 public:
     explicit TCPServer(Database& db);
     ~TCPServer();
+    // Run once. Stop and join the calling thread before destroying the server.
     void run();
     void stop();
 private:
@@ -30,7 +31,7 @@ private:
     std::atomic<bool> is_running_;
 
     int socket_=-1;
-    int epoll_fd;
+    int epoll_fd = -1;
     uint16_t tcp_port_ = 5634; //standard port
     struct sockaddr_in server_addr;
 

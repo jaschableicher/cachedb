@@ -18,7 +18,12 @@ bool TCPServer::handle_new_client(){
     client_ev.events = EPOLLIN;         // Trigger when client sends data
     client_ev.data.fd = new_client;     // Save the client FD
 
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_client, &client_ev);
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_client, &client_ev) < 0) {
+        close(new_client);
+        return false;
+    }
+    // Track idle clients too, so destruction closes every accepted socket.
+    message_pool.try_emplace(new_client);
     return false;
 }
 
@@ -39,7 +44,7 @@ void TCPServer::handle_data(int client_fd){
     if(buffer[bytes_read-1]!='\n'){
         return;
     }            
-    std::string reply = std::string(execute_command(db_, message_pool[client_fd]) + "\n");
+    std::string reply = execute_command(db_, message_pool[client_fd], true) + "\n";
     send(client_fd, reply.c_str(), std::strlen(reply.c_str()),0);
     message_pool[client_fd].clear();
 
