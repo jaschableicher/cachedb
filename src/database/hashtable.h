@@ -16,13 +16,20 @@ private:
         V data;
     };
 
-    mutable std::vector<std::list<Entry>> buckets_;
+    std::vector<std::list<Entry>> buckets_;
     std::size_t index(const std::string& key) const;
 
 public:
-
+     const std::vector<std::list<Entry>>& buckets() const noexcept {
+        return buckets_;
+    }
     explicit HashTable(std::size_t bucket_count = 16)
         : buckets_(std::max<std::size_t>(bucket_count, 1)) {}
+
+
+
+    auto begin() const noexcept { return buckets_.begin(); }
+    auto end() const noexcept   { return buckets_.end(); }
 
     void insert(const std::string& key, const V& value) {
         auto& bucket = buckets_[index(key)];
@@ -53,6 +60,10 @@ public:
         }
         return false;
     }
+    size_t bucket_count() const noexcept{
+        return buckets_.size();
+    }
+    
 };
 
 template <typename V>
