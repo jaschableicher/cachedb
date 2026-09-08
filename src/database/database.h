@@ -8,8 +8,21 @@
 #include <thread>
 #include <queue>
 #include <chrono>
+#include <fstream>
+#include <variant>
+#include <vector>
+#include <list>
 #include "hashtable.h"
 #include "../commands/value.h"
+
+enum SnapshotReturn{
+    ErrorCorruptedFile,
+    ErrorInvalidFormat,
+    ErrorMalformedHeader,
+    ErrorNewerVersion,
+    ErrorReadingBucketCount,
+    Success
+};
 class Database {
 public:
     Database();
@@ -26,6 +39,11 @@ public:
         int64_t expires_in_seconds
     );
     int64_t get_expiry(const std::string& key);
+
+
+    //Memory Dumps
+    bool create_memory_snapshot(std::string& filename);
+    SnapshotReturn read_memory_snapshot(std::string& filename);
 private:
     struct Val{
         Value data;
