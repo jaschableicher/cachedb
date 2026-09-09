@@ -36,6 +36,7 @@ add_library(cache_db_core
     src/server/client.cpp
     src/database/expiration.cpp
     src/logger/aol.cpp
+    src/database/snapshot.cpp
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

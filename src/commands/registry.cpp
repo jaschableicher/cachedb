@@ -132,6 +132,8 @@ bool Registry::value_matches_type(const Value& value, ValueType expected) const
 
         case ValueType::Extension:
             return std::holds_alternative<Extension>(value);
+        case ValueType::Any:
+            return true;
     }
 
     return false;

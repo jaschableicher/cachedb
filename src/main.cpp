@@ -32,7 +32,10 @@ int main() {
     Database db;
     TCPServer server(db);
     //replay database.aof cache
-    Logger::get_instance()->replay_commands(db);
+    //on a clean exit the last command on database.aof must be SAVE for the datadump
+    //If no SAVE existed, the programm crashed so recover the latest datadump and then from the last SAVE replay the commands
+    //Then if
+   // Logger::get_instance()->replay_commands(db);
     std::thread server_thread(&TCPServer::run, &server);
 
 

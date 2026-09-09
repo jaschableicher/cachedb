@@ -27,17 +27,18 @@ using Value = std::variant<
     Extension
 >;
 
-enum class ValueType {
-    Null,
-    Bool,
-    Int64,
-    UInt64,
-    Double,
-    String,
-    Bytes,
-    Array,
-    Map,
-    Extension
+enum class ValueType : uint8_t{
+    Any=0,
+    Null=1,
+    Bool=2,
+    Int64=3,
+    UInt64=4,
+    Double=5,
+    String=6,
+    Bytes=7,
+    Array=8,
+    Map=9,
+    Extension=10
 };
 
 #endif

@@ -18,3 +18,4 @@
 /compile_commands.json
 /install_manifest.txt
 database.aof
+*.db
