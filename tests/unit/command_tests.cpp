@@ -45,3 +45,37 @@ TEST(CommandTests, ignores_trailing_newline) {
     EXPECT_EQ(std::get<std::string>(command.args[0]), "hello");
     EXPECT_EQ(std::get<std::string>(command.args[1]), "world");
 }
+
+TEST(CommandTests, parses_uint_argument) {
+    Command command = parse_command("SET answer 42");
+
+    ASSERT_EQ(command.args.size(), 2);
+    ASSERT_TRUE(std::holds_alternative<uint64_t>(command.args[1]));
+    EXPECT_EQ(std::get<uint64_t>(command.args[1]), 42U);
+}
+
+TEST(CommandTests, parses_bool_arguments) {
+    Command command = parse_command("SET flags true false");
+
+    ASSERT_EQ(command.args.size(), 3);
+    ASSERT_TRUE(std::holds_alternative<bool>(command.args[1]));
+    ASSERT_TRUE(std::holds_alternative<bool>(command.args[2]));
+    EXPECT_TRUE(std::get<bool>(command.args[1]));
+    EXPECT_FALSE(std::get<bool>(command.args[2]));
+}
+
+TEST(CommandTests, parses_int_argument) {
+    Command command = parse_command("SET offset -42");
+
+    ASSERT_EQ(command.args.size(), 2);
+    ASSERT_TRUE(std::holds_alternative<int64_t>(command.args[1]));
+    EXPECT_EQ(std::get<int64_t>(command.args[1]), -42);
+}
+
+TEST(CommandTests, parses_double_argument) {
+    Command command = parse_command("SET ratio 3.14159");
+
+    ASSERT_EQ(command.args.size(), 2);
+    ASSERT_TRUE(std::holds_alternative<double>(command.args[1]));
+    EXPECT_DOUBLE_EQ(std::get<double>(command.args[1]), 3.14159);
+}
