@@ -24,6 +24,14 @@ bool Database::create_memory_snapshot(std::string& filename){
             uint32_t keyLen = static_cast<uint32_t>(item.key.size());
             out_file.write(reinterpret_cast<const char*>(&keyLen), sizeof(keyLen));
             out_file.write(item.key.data(), keyLen);
+           
+            //Handle expiration if existent
+            bool has_value = item.data.expiry.has_value();
+            out_file.write(reinterpret_cast<const char*>(&has_value),1);
+            if(item.data.expiry.has_value()){
+                //now write the expiry to file
+                out_file.write(reinterpret_cast<const char*>(&item.data.expiry.value()), sizeof(item.data.expiry.value()));
+            }
             std::visit([&out_file](const auto& arg) {
                 using T = std::decay_t<decltype(arg)>;
 
@@ -63,6 +71,7 @@ bool Database::create_memory_snapshot(std::string& filename){
             }, item.data.data);
         }
     }
+    out_file.close();
     return true;
 }
 
@@ -117,6 +126,78 @@ SnapshotReturn Database::read_memory_snapshot(std::string& filename){
     if(header_validation!=SnapshotReturn::Success){
         return header_validation;
     }
-
-
+    //Go through bucket sizes
+    //Always first get the type tag for ValueType then read in the data
+    for(int i= 0; i< out_buckets;i++){
+        //Goes through the singular buckets
+        //Read list size:
+        uint32_t list_size;
+        in_file.read(reinterpret_cast<char*>(&list_size),sizeof(list_size));
+        for(int j = 0; j<list_size;j++){
+            uint32_t key_len;
+            in_file.read(reinterpret_cast<char*>(&key_len),sizeof(key_len));
+            //read key via keylen
+           std::string key(key_len, '\0');
+            in_file.read(&key[0], key_len);
+            //Check for expiration
+            bool has_expiry;
+            in_file.read(reinterpret_cast<char*>(&has_expiry), 1);
+            int64_t expiry = -1;
+            if(has_expiry){
+                //read expiry of int64_t
+                in_file.read(reinterpret_cast<char*>(&expiry), sizeof(int64_t));
+            }
+            //Read the tag
+            ValueType tag;
+            in_file.read(reinterpret_cast<char*>(&tag), sizeof(tag));
+            switch(tag){
+              case ValueType::Bool:{ 
+                    bool value;
+                    in_file.read(reinterpret_cast<char*>(&has_expiry), 1);
+                    this->set(key,value);
+                    break;
+                }
+                case ValueType::Int64:{
+                    int64_t value_int;
+                    in_file.read(reinterpret_cast<char*>(&value_int), sizeof(int64_t));
+                    this->set(key, value_int);
+                    break;
+                }
+                case ValueType::UInt64:{
+                    uint64_t value_uint;
+                    in_file.read(reinterpret_cast<char*>(&value_uint), sizeof(uint64_t));
+                    this->set(key, value_uint);
+                    break;
+                }
+                case ValueType::Double:{
+                    double value_double;
+                    in_file.read(reinterpret_cast<char*>(&value_double), sizeof(double));
+                    this->set(key, value_double);
+                    break;
+                }
+                case ValueType::String:{
+                    //read length of string
+                    uint32_t string_length;
+                    in_file.read(reinterpret_cast<char*>(&string_length),sizeof(uint32_t));
+                    std::string value_string(string_length, '\0');
+                    in_file.read(reinterpret_cast<char*>(value_string.data()),string_length);
+                    set(key,value_string);
+                    break;
+                }
+                default:
+                    std::cerr << "wrong type" << std::endl;
+            }
+            //check expiry only here because full key + value must have been read in for next key to work!
+            if(has_expiry){
+                const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                if(expiry <=now){
+                    this->erase(key);
+                }
+                this->set_expiry(key,expiry-now);
+                //PUSH back to expiration queue
+            }
+        }
+    }
+    in_file.close();
+    return SnapshotReturn::Success;
 }
