@@ -9,13 +9,13 @@ void register_commands() {
         .name = "SET",
         .arguments = {
             { ValueType::String, false },
-            { ValueType::String, false }
+            { ValueType::Any, false }
         },
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value {
             const auto& key = std::get<std::string>(args[0]);
-            const auto& value = std::get<std::string>(args[1]);
+            
 
-            ctx.db.set(key, value);
+            ctx.db.set(key, args[1]);
             return std::string("OK");
         }
     });

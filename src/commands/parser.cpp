@@ -8,9 +8,10 @@ std::vector<Value> parse_arguments(std::string_view input) {
         if (i >= input.size()) break;
 
         std::string arg;
-
+        bool is_quoted = false;
         if (std::string_view("\"'").find(input[i]) != std::string_view::npos) {
             char quotation = input[i];
+            is_quoted=true;
             ++i;
 
             while (i < input.size() && input[i] != quotation) {
@@ -33,13 +34,15 @@ std::vector<Value> parse_arguments(std::string_view input) {
             }
 
             if (i < input.size() && input[i] == quotation) ++i;
+            args.push_back(arg);
         } else {
+            std::size_t start = i;
             while (i < input.size() && !std::isspace(static_cast<unsigned char>(input[i]))) {
-                arg += input[i++];
+                ++i;
             }
+            std::string_view token = input.substr(start, i - start);
+            args.push_back(parse_scalar_value(token));
         }
-
-        args.push_back(std::move(arg));
     }
 
     return args;

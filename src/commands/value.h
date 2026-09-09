@@ -28,6 +28,7 @@ using Value = std::variant<
 >;
 
 enum class ValueType : uint8_t{
+    Any=0,
     Null=1,
     Bool=2,
     Int64=3,
