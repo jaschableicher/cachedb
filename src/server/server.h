@@ -2,6 +2,7 @@
 #define SERVER_H
 #include "database/database.h"
 #include "commands/executor.h"
+#include "commands/command_worker.h"
 #include <unistd.h>
 #include <cstdint>
 #include <arpa/inet.h>   // htons, htonl, inet_pton
@@ -34,7 +35,7 @@ private:
     int epoll_fd = -1;
     uint16_t tcp_port_ = 5634; //standard port
     struct sockaddr_in server_addr;
-
+    CommandWorker worker;
 
     std::unordered_map<int,std::string> message_pool;//<client_fd,msg>
     bool handle_new_client();

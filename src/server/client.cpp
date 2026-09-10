@@ -43,9 +43,21 @@ void TCPServer::handle_data(int client_fd){
     message_pool[client_fd].append(buffer, bytes_read);
     if(buffer[bytes_read-1]!='\n'){
         return;
-    }            
-    std::string reply = execute_command(db_, message_pool[client_fd], true) + "\n";
-    send(client_fd, reply.c_str(), std::strlen(reply.c_str()),0);
+    }          
+    
+    std::string msg = message_pool[client_fd];
+    //Worker thread made p50 quite a bit worse however p999 was way way better
+    //FROM:  Requests: 50'000 Connections: 1'000 Throughput: 64'963 req/s Latency: p50: 4.52 ms p95: 10.26 ms p99: 177.51 ms p999: 362.86 ms
+    //  TO:  Requests: 50'000 Connections: 1'000 Throughput: 69'242 req/s Latency: p50: 11.96 ms p95: 15.47 ms p99: 17.01 ms p999: 22.45 ms
+    worker.push([this, client_fd, msg]() {
+        std::string reply = execute_command(db_, msg, true) + "\n";
+        
+
+        ssize_t bytes_sent = send(client_fd, reply.c_str(), reply.length(), 0);
+        if (bytes_sent < 0) {
+            close(client_fd);
+        }
+    });
     message_pool[client_fd].clear();
 
 }

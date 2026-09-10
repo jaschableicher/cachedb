@@ -96,6 +96,7 @@ void TCPServer::run(){
                 if(handle_new_client()) break;    
             }
             else{
+                
                handle_data(events[i].data.fd);
             }
         }
