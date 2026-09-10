@@ -31,12 +31,14 @@ add_library(cache_db_core
     src/commands/parser.cpp
     src/commands/registry.cpp
     src/commands/utils.cpp
+    src/commands/command_worker.cpp
     src/database/database.cpp
+    src/database/expiration.cpp
+    src/database/snapshot.cpp
     src/server/server.cpp
     src/server/client.cpp
-    src/database/expiration.cpp
     src/logger/aol.cpp
-    src/database/snapshot.cpp
+
 )
 target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -58,7 +60,9 @@ if(BUILD_BENCHMARKS)
 
     add_executable(server_connection_load benchmarks/server_connection_load.cpp)
     target_link_libraries(server_connection_load PRIVATE Threads::Threads)
-    enable_warnings(server_connection_load)
+    add_executable(memory_load benchmarks/memory_load.cpp)
+    target_link_libraries(memory_load PRIVATE Threads::Threads)
+    enable_warnings(memory_load)
 endif()
 
 if(BUILD_TESTING)
