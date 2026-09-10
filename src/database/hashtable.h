@@ -18,12 +18,25 @@ private:
 
     std::vector<std::list<Entry>> buckets_;
     std::size_t index(const std::string& key) const;
-
+    void rehash(uint64_t new_size){
+        std::vector<std::list<Entry>> new_buckets(new_size);
+        for (auto& old_bucket : buckets_) {
+            while(!old_bucket.empty()){
+                const size_t new_idx = index(old_bucket.front().key);
+                new_buckets[new_idx].splice(
+                    new_buckets[new_idx].begin(), // destination position
+                    old_bucket,                   // source list
+                    old_bucket.begin()            // iterator to element
+                );
+            }
+        }
+        buckets_ = std::move(new_buckets);
+    }
 public:
      const std::vector<std::list<Entry>>& buckets() const noexcept {
         return buckets_;
     }
-    explicit HashTable(std::size_t bucket_count = 16)
+    explicit HashTable(std::size_t bucket_count = 256)
         : buckets_(std::max<std::size_t>(bucket_count, 1)) {}
 
 
@@ -32,6 +45,12 @@ public:
     auto end() const noexcept   { return buckets_.end(); }
 
     void insert(const std::string& key, const V& value) {
+        //TODO: implement custom vector growing/rehashing of values
+        //Every time it is done it should be num_items * 2 in size So it stays O(1) at most of the time
+        //-->Uper limit of vector size? As it cannot grow indefinetly
+        if(bucket_count()>buckets_.size()*0.9){
+            rehash(buckets_.size()*2);
+        }
         auto& bucket = buckets_[index(key)];
         for (auto& entry : bucket) {
             if (entry.key == key) {
