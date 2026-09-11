@@ -17,12 +17,15 @@ private:
     };
 
     std::vector<std::list<Entry>> buckets_;
+    std::size_t entry_count_ = 0;
     std::size_t index(const std::string& key) const;
+
+
     void rehash(uint64_t new_size){
         std::vector<std::list<Entry>> new_buckets(new_size);
         for (auto& old_bucket : buckets_) {
             while(!old_bucket.empty()){
-                const size_t new_idx = index(old_bucket.front().key);
+                const size_t new_idx = std::hash<std::string>{}(old_bucket.front().key)%new_buckets.size();
                 new_buckets[new_idx].splice(
                     new_buckets[new_idx].begin(), // destination position
                     old_bucket,                   // source list
@@ -48,9 +51,7 @@ public:
         //TODO: implement custom vector growing/rehashing of values
         //Every time it is done it should be num_items * 2 in size So it stays O(1) at most of the time
         //-->Uper limit of vector size? As it cannot grow indefinetly
-        if(bucket_count()>buckets_.size()*0.9){
-            rehash(buckets_.size()*2);
-        }
+
         auto& bucket = buckets_[index(key)];
         for (auto& entry : bucket) {
             if (entry.key == key) {
@@ -58,7 +59,13 @@ public:
                 return;
             }
         }
-        bucket.push_back(Entry{key, value});
+        if (static_cast<double>(entry_count_) + 1.0 >
+        static_cast<double>(buckets_.size()) * 0.9) {
+        rehash(buckets_.size() * 2);
+    }
+
+        buckets_[index(key)].push_back(Entry{key, value});
+        ++entry_count_;
     }
 
     const V* find(const std::string& key) const {
@@ -74,6 +81,7 @@ public:
         for (auto it = bucket.begin(); it != bucket.end(); ++it) {
             if (it->key == key) {
                 bucket.erase(it);
+                --entry_count_;
                 return true;
             }
         }
@@ -82,7 +90,9 @@ public:
     size_t bucket_count() const noexcept{
         return buckets_.size();
     }
-    
+    std::size_t size() const noexcept {
+        return entry_count_;
+    }
 };
 
 template <typename V>
