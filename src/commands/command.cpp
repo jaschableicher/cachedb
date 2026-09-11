@@ -52,11 +52,11 @@ void register_commands() {
         .name="EXPIRE",
         .arguments = {
             { ValueType::String, false },
-            { ValueType::UInt64, false }
+            { ValueType::Int64, false }
         },
         .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
             const auto& key = std::get<std::string>(args[0]);
-            const auto& expires_in_seconds = std::get<uint64_t>(args[1]);
+            const auto& expires_in_seconds = std::get<int64_t>(args[1]);
             if(ctx.db.set_expiry(key, expires_in_seconds).has_value()){
                 return expires_in_seconds;
             }
