@@ -19,3 +19,5 @@
 /install_manifest.txt
 database.aof
 *.db
+perf.data
+perf.data.old

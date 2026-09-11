@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <iostream>
+#include <limits>
 Registry* Registry::instance_=nullptr;
 
 const CommandDescriptor* Registry::lookup(std::string_view id) const
@@ -81,6 +82,17 @@ bool Registry::coerce_value(Value& value, ValueType expected) const
 {
     if (value_matches_type(value, expected)) {
         return true;
+    }
+
+    if (expected == ValueType::Int64) {
+        if (const auto* unsigned_integer = std::get_if<uint64_t>(&value)) {
+            if (*unsigned_integer > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+                return false;
+            }
+
+            value = static_cast<int64_t>(*unsigned_integer);
+            return true;
+        }
     }
 
     const auto* text = std::get_if<std::string>(&value);

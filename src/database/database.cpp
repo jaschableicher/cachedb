@@ -9,6 +9,7 @@ Database::Database(): running_(true){
 
 Database::~Database(){
     running_.store(false);
+    expiration_condition_.notify_one();
     expiration_thread.join();
 }
 
@@ -32,4 +33,3 @@ bool Database::erase(const std::string& key){
     //Should here also check for expiry as technically if expired it should return false as nothing was supposed to be there in the first place?
     return cache_.erase(key);
 }
-

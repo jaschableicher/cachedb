@@ -194,6 +194,11 @@ SnapshotReturn Database::read_memory_snapshot(std::string& filename){
                     this->erase(key);
                 }
                 this->set_expiry(key,expiry-now);
+                this->expiration_heap_.emplace(ExpirationEntry{
+                    key,
+                    expiry,
+                    1
+                });
                 //PUSH back to expiration queue
             }
         }

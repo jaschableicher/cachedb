@@ -8,6 +8,7 @@
 #include <thread>
 #include <queue>
 #include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <variant>
 #include <vector>
@@ -66,6 +67,7 @@ private:
     std::atomic_bool running_;
     std::thread expiration_thread;
     std::mutex expiration_mutex_;
+    std::condition_variable expiration_condition_;
     std::priority_queue<ExpirationEntry,
                         std::vector<ExpirationEntry>,
                         std::greater<ExpirationEntry>> expiration_heap_;
