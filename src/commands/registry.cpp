@@ -27,15 +27,17 @@ void Registry::register_command(CommandDescriptor command_descriptor){
     );
 }
 
-Value Registry::execute( CommandContext& context,const Command& command) const{
+ExecuteReturn Registry::execute( CommandContext& context,const Command& command) const{
     const CommandDescriptor* descriptor = lookup(command.name);
 
     if (!descriptor) {
-        return std::string(
+        return {
+            std::string(
             "ERR unknown command '" +
             command.name +
-            "'"
-        );
+            "'"),
+            EXECUTEERROR
+        };
     }
 
     std::size_t required_arguments = 0;
@@ -47,35 +49,44 @@ Value Registry::execute( CommandContext& context,const Command& command) const{
     }
 
     if (command.args.size() < required_arguments) {
-        return std::string(
-            "ERR too few arguments for '" + std::string(descriptor->name) +"'"
-        );
+        return {
+            std::string(
+            "ERR too few arguments for '" + std::string(descriptor->name) +"'"),
+            EXECUTEERROR
+        };
     }
 
     if (command.args.size() >descriptor->arguments.size())
     {
-        return std::string(
+        return {std::string(
             "ERR too many arguments for '" +
             std::string(descriptor->name) +
-            "'"
-        );
+            "'"),
+            EXECUTEERROR
+        };
     }
 
     auto args = command.args;
     for (std::size_t i = 0; i < args.size(); ++i) {
         if (!coerce_value(args[i], descriptor->arguments[i].type))
         {
-            return std::string(
+            return {
+                 std::string(
                 "ERR invalid argument type at index " +
-                std::to_string(i)
-            );
+                std::to_string(i)),
+                EXECUTEERROR
+            };
         }
     }
+    Value value = descriptor->handler(
+            context,
+            args
+        );
 
-    return descriptor->handler(
-        context,
-        args
-    );
+    return {
+        value,
+        ExecuteState::EXECUTESUCCESS
+    };
 }
 
 bool Registry::coerce_value(Value& value, ValueType expected) const

@@ -7,7 +7,14 @@
 #include <optional>
 #include "command.h"
 
-
+enum ExecuteState{
+    EXECUTESUCCESS,
+    EXECUTEERROR
+};
+struct ExecuteReturn{
+    Value value;
+    ExecuteState state;
+};
 class Registry{
 public:
     static Registry* get_instance(){
@@ -18,7 +25,7 @@ public:
     }
     void register_command(CommandDescriptor command_descriptor);
     const CommandDescriptor* lookup(std::string_view id) const;
-    Value execute(CommandContext& context,const Command& command) const;
+    ExecuteReturn execute(CommandContext& context,const Command& command) const;
 
 private:
     static Registry* instance_;

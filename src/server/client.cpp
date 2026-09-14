@@ -50,15 +50,7 @@ void TCPServer::handle_data(int client_fd){
     //FROM:  Requests: 50'000 Connections: 1'000 Throughput: 64'963 req/s Latency: p50: 4.52 ms p95: 10.26 ms p99: 177.51 ms p999: 362.86 ms
     //  TO:  Requests: 50'000 Connections: 1'000 Throughput: 69'242 req/s Latency: p50: 11.96 ms p95: 15.47 ms p99: 17.01 ms p999: 22.45 ms
     //In general still WAAY to slow, p50 MUST be far below 1ms
-    worker.push([this, client_fd, msg]() {
-        std::string reply = execute_command(db_, msg, true) + "\n";
-        
-
-        ssize_t bytes_sent = send(client_fd, reply.c_str(), reply.length(), 0);
-        if (bytes_sent < 0) {
-            close(client_fd);
-        }
-    });
+    worker.push(Task{db_, client_fd, std::move(msg)});
     message_pool[client_fd].clear();
 
 }

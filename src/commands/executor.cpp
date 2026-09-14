@@ -3,11 +3,12 @@
 std::string execute_command(Database& db, std::string line, bool logging){
     Command command = parse_command(line);
     CommandContext context{db};
-    Value result = Registry::get_instance()->execute(context,command); //Move from this to returning struct with CommandReturn enum and Value result, for this there is no need to string conversions, saves a little time
-    std::string result_string = value_to_string(result);
+    ExecuteReturn result = Registry::get_instance()->execute(context,command); //Move from this to returning struct with CommandReturn enum and Value result, for this there is no need to string conversions, saves a little time
     
-    if (result_string.rfind("ERR", 0) != 0 && logging) {
+    
+    if (result.state!=EXECUTEERROR && logging) {
         Logger::get_instance()->log_command(line);
     }
+    std::string result_string = value_to_string(result.value);
     return result_string;
 }
