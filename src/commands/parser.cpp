@@ -67,8 +67,8 @@ Command parse_command(std::string_view input){
     }
 
     std::string_view rest_of_input = input.substr(last);
-    //Loop through the rest of the input string and push the arguments on there
-    command.args=std::move(parse_arguments(rest_of_input));
+    
+    command.args=parse_arguments(rest_of_input);
 
     return command;
 

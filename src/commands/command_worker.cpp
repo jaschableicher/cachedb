@@ -24,7 +24,7 @@ void CommandWorker::stop() {
 }
 void CommandWorker::run() {
     while (true) {
-        // We use a std::optional to allow delayed initialization of our reference-bound Task
+       
         std::optional<Task> task;
         {
             std::unique_lock<std::mutex> lock(mutex_);
@@ -35,7 +35,7 @@ void CommandWorker::run() {
                 break;
             }
 
-            // Move the Task out of the queue and initialize our optional
+       
             task.emplace(std::move(tasks_.front()));
             tasks_.pop();
         }
