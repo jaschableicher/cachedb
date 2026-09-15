@@ -10,7 +10,7 @@ CommandWorker::~CommandWorker() {
     }
 }
 
-void CommandWorker::push(std::function<void()> task) {
+void CommandWorker::push(Task task) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         tasks_.push(std::move(task));
@@ -22,26 +22,33 @@ void CommandWorker::stop() {
     stop_ = true;
     cv_.notify_all();
 }
-
 void CommandWorker::run() {
     while (true) {
-        std::function<void()> task;
+        // We use a std::optional to allow delayed initialization of our reference-bound Task
+        std::optional<Task> task;
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            // Sleep until new task arrives or stop is requested
+            // Sleep until a new task arrives or a stop is requested
             cv_.wait(lock, [this]() { return stop_ || !tasks_.empty(); });
 
             if (stop_ && tasks_.empty()) {
                 break;
             }
 
-            task = std::move(tasks_.front());
+            // Move the Task out of the queue and initialize our optional
+            task.emplace(std::move(tasks_.front()));
             tasks_.pop();
         }
 
-        // Execute task outside the lock
-        if (task) {
-            task();
+        // Execute outside the lock
+        if (task.has_value()) {
+            // Accessing members directly via the optional pointer operator
+            std::string reply = execute_command(task->db, task->msg, true) + "\n";
+
+            ssize_t bytes_sent = send(task->client_fd, reply.c_str(), reply.length(), 0);
+            if (bytes_sent < 0) {
+                close(task->client_fd);
+            }
         }
     }
 }

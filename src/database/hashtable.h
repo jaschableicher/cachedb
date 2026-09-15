@@ -48,9 +48,7 @@ public:
     auto end() const noexcept   { return buckets_.end(); }
 
     void insert(const std::string& key, const V& value) {
-        //TODO: implement custom vector growing/rehashing of values
-        //Every time it is done it should be num_items * 2 in size So it stays O(1) at most of the time
-        //-->Uper limit of vector size? As it cannot grow indefinetly
+
 
         auto& bucket = buckets_[index(key)];
         for (auto& entry : bucket) {

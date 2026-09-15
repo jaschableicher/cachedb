@@ -57,21 +57,21 @@ TEST(ExecutorTest, SetThenGetPreservesBinaryData) {
         std::byte{0xFF}
     };
 
-    Value set_result = Registry::get_instance()->execute(
+    ExecuteReturn set_result = Registry::get_instance()->execute(
         context,
         Command{.name = "SET", .args = {std::string("binary"), payload}}
     );
 
-    ASSERT_TRUE(std::holds_alternative<std::string>(set_result));
-    EXPECT_EQ(std::get<std::string>(set_result), "OK");
+    ASSERT_TRUE(std::holds_alternative<std::string>(set_result.value));
+    EXPECT_EQ(std::get<std::string>(set_result.value), "OK");
 
-    Value get_result = Registry::get_instance()->execute(
+    ExecuteReturn get_result = Registry::get_instance()->execute(
         context,
         Command{.name = "GET", .args = {std::string("binary")}}
     );
 
-    ASSERT_TRUE(std::holds_alternative<Bytes>(get_result));
-    EXPECT_EQ(std::get<Bytes>(get_result), payload);
+    ASSERT_TRUE(std::holds_alternative<Bytes>(get_result.value));
+    EXPECT_EQ(std::get<Bytes>(get_result.value), payload);
 }
 
 TEST(ExecutorTest, LargeData) {
