@@ -2,10 +2,12 @@
 //For now only one connection possible!
 #include "server.h"
 int MAX_CLIENTS=6000;
+constexpr int NUM_WORKERS = 4;
 ///4095 is a hard limit at least on the wsl company device
 //TODO: Test on home device with different configuration!
 
 #include <fcntl.h>
+#include <poll.h>
 
 void TCPServer::set_nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
@@ -38,13 +40,19 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
         return;
     }
     set_nonblocking(socket_);
+
+    for (int i = 0; i < NUM_WORKERS; ++i) {
+        auto worker = std::make_unique<ClientWorker>(db_);
+        worker->start();
+        workers.push_back(std::move(worker));
+        std::cout << "Started worker " << i << std::endl;
+    }
+
 }
 
 TCPServer::~TCPServer(){ 
     stop();
-    for (const auto& client : message_pool) {
-        ::close(client.first);
-    }
+   
     if (epoll_fd >= 0) {
         ::close(epoll_fd);
     }
@@ -65,41 +73,35 @@ void TCPServer::run(){
     // Preserve a stop request made before this thread started.
     if (!is_running_.load()) return;
 
-    struct epoll_event event, events[MAX_CLIENTS];
-    event.events = EPOLLIN;
-	event.data.fd = socket_;
-	epoll_fd = epoll_create1(0);
-
-	if (epoll_fd == -1) {
-		std::cerr << "Failed to create epoll file descriptor\n";
-		return;
-	}
-    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_, &event))
-	{
-		close(epoll_fd);
-        epoll_fd = -1;
-        std::cerr << "Failed to add file descriptor to epoll\n";
-		return;
-	}
+  
 	
-
+    //TODO: Run this in a thread pool, accept new clients and move them into a perspective thread
+    // Configure a max thread count which handles so not too many threads are existent
+    // Spawn and destroy threads via thread pool when they are needed/no longer needed
     while(is_running_.load()){
-        // Wake periodically so stop() also works with no client traffic.
-        int event_count = epoll_wait(epoll_fd, events, MAX_CLIENTS, 100);
-        if (event_count < 0) {
+        pollfd listener{socket_, POLLIN, 0};
+        int ready = poll(&listener, 1, 100);
+        if (ready == 0) continue; // Periodically check for a stop request.
+        if (ready < 0) {
             if (errno == EINTR) continue;
-            std::cerr << "epoll_wait failed: " << std::strerror(errno) << '\n';
+            std::cerr << "Poll failed: " << std::strerror(errno) << '\n';
             break;
         }
-        for (int i = 0; i < event_count && is_running_.load(); i++) {
-            if (events[i].data.fd == socket_) {
-                if(handle_new_client()) break;    
-            }
-            else{
-                
-               handle_data(events[i].data.fd);
-            }
+        if (!is_running_.load()) break;
+        if (!(listener.revents & POLLIN)) break;
+
+         int client_fd = accept(socket_, nullptr, nullptr);
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+            std::cerr << "Accept failed: " << std::strerror(errno) << '\n';
+            continue;
         }
+
+        // 4. Assign the new client to the next worker in a round-robin fashion
+        workers[next_worker]->add_client(client_fd);
+        next_worker = (next_worker + 1) % NUM_WORKERS;
     }
-   
+    for (auto& worker : workers) {
+        worker->join();
+    }
 }

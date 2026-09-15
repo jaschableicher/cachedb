@@ -16,8 +16,8 @@
 #include <thread>
 #include <vector>
 #include <sys/epoll.h>
-
-
+#include "utils.h"
+#include "client_pool.h"
 //Switch to singleton? as usually only one server or not?
 //Running TCP server which simply accepts commands
 class TCPServer{
@@ -37,9 +37,9 @@ private:
     struct sockaddr_in server_addr;
     CommandWorker worker;
 
-    std::unordered_map<int,std::string> message_pool;//<client_fd,msg>
-    bool handle_new_client();
-    void handle_data(int client_fd);
+    std::vector<std::unique_ptr<ClientWorker>> workers;
+    size_t next_worker = 0;
+
     void set_nonblocking(int fd);
 };
 

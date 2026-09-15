@@ -36,8 +36,8 @@ add_library(cache_db_core
     src/database/expiration.cpp
     src/database/snapshot.cpp
     src/server/server.cpp
-    src/server/client.cpp
     src/logger/aol.cpp
+    src/server/client_pool.cpp
 
 )
 target_include_directories(cache_db_core PUBLIC
