@@ -48,8 +48,6 @@ public:
     auto end() const noexcept   { return buckets_.end(); }
 
     void insert(const std::string& key, const V& value) {
-
-
         auto& bucket = buckets_[index(key)];
         for (auto& entry : bucket) {
             if (entry.key == key) {
@@ -57,10 +55,9 @@ public:
                 return;
             }
         }
-        if (static_cast<double>(entry_count_) + 1.0 >
-        static_cast<double>(buckets_.size()) * 0.9) {
-        rehash(buckets_.size() * 2);
-    }
+        if (static_cast<double>(entry_count_) + 1.0 > static_cast<double>(buckets_.size()) * 0.9) {
+            rehash(buckets_.size() * 2);
+        }
 
         buckets_[index(key)].push_back(Entry{key, value});
         ++entry_count_;

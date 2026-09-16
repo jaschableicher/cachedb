@@ -22,8 +22,8 @@ void Registry::register_command(CommandDescriptor command_descriptor){
         throw std::runtime_error("Command already exists: " + name);
     }
     commands_.emplace(
-        std::move(name),
-        std::move(command_descriptor)
+        name,
+        command_descriptor
     );
 }
 
