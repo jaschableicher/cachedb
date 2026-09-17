@@ -92,6 +92,6 @@ void Logger::replay_commands(Database& db){
 
     std::string line;
     while (std::getline(file, line)) {
-        execute_command(db, line, false);
+       // execute_command(db, line, false);
     }
 }

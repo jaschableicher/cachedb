@@ -9,25 +9,7 @@
 
 void register_commands();
 
-void cli(Database& db){
-    
-    
 
-    std::string line;
-
-    while (true) {
-        std::cout << "> ";
-        if (!std::getline(std::cin, line))
-            break;
-
-        if (line == "EXIT")
-            break;
-
-        auto result = execute_command(db, line,true);
-
-        std::cout << result << '\n';
-    }
-}
 std::atomic<bool> g_running{true};
 
 void signal_handler(int signal) {
