@@ -45,7 +45,6 @@ add_library(cache_db_core
     src/commands/parser.cpp
     src/commands/registry.cpp
     src/commands/utils.cpp
-    src/commands/command_worker.cpp
     src/database/database.cpp
     src/database/expiration.cpp
     src/database/snapshot.cpp
@@ -78,7 +77,7 @@ if(BUILD_BENCHMARKS)
     add_executable(server_connection_load benchmarks/server_connection_load.cpp)
     target_link_libraries(server_connection_load PRIVATE Threads::Threads)
     add_executable(memory_load benchmarks/memory_load.cpp)
-    target_link_libraries(memory_load PRIVATE Threads::Threads)
+    target_link_libraries(memory_load PRIVATE Threads::Threads msgpack-cxx)
     enable_warnings(memory_load)
 endif()
 
