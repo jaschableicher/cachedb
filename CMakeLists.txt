@@ -14,6 +14,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(CTest)
 
+include(FetchContent)
+set(MSGPACK_USE_BOOST OFF CACHE BOOL "Use Boost in MessagePack" FORCE)
+set(MSGPACK_BUILD_TESTS OFF CACHE BOOL "Build MessagePack tests" FORCE)
+set(MSGPACK_BUILD_DOCS OFF CACHE BOOL "Build MessagePack documentation" FORCE)
+set(MSGPACK_BUILD_EXAMPLES OFF CACHE BOOL "Build MessagePack examples" FORCE)
+set(MSGPACK_CXX20 ON CACHE BOOL "Use C++20 in MessagePack" FORCE)
+FetchContent_Declare(
+    msgpack
+    GIT_REPOSITORY https://github.com/msgpack/msgpack-c.git
+    GIT_TAG cpp-7.0.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(msgpack)
+
 function(enable_warnings target)
     target_compile_options(${target} PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:
@@ -31,13 +45,14 @@ add_library(cache_db_core
     src/commands/parser.cpp
     src/commands/registry.cpp
     src/commands/utils.cpp
-    src/commands/command_worker.cpp
     src/database/database.cpp
     src/database/expiration.cpp
     src/database/snapshot.cpp
     src/server/server.cpp
     src/logger/aol.cpp
     src/server/client_pool.cpp
+    src/protocol/coding.cpp
+    src/protocol/payload.cpp
 
 )
 target_include_directories(cache_db_core PUBLIC
@@ -47,6 +62,7 @@ target_include_directories(cache_db_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/server
     ${CMAKE_CURRENT_SOURCE_DIR}/src/logger
 )
+target_link_libraries(cache_db_core PUBLIC msgpack-cxx)
 enable_warnings(cache_db_core)
 
 add_executable(cache_db src/main.cpp)
@@ -61,7 +77,7 @@ if(BUILD_BENCHMARKS)
     add_executable(server_connection_load benchmarks/server_connection_load.cpp)
     target_link_libraries(server_connection_load PRIVATE Threads::Threads)
     add_executable(memory_load benchmarks/memory_load.cpp)
-    target_link_libraries(memory_load PRIVATE Threads::Threads)
+    target_link_libraries(memory_load PRIVATE Threads::Threads msgpack-cxx)
     enable_warnings(memory_load)
 endif()
 

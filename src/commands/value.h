@@ -4,6 +4,8 @@
 #include <vector>
 #include <variant>
 #include <cstdint>
+#include <cstddef>
+#include <string>
 #include <span>
 #include <functional>
 

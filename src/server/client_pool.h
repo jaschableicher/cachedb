@@ -9,8 +9,12 @@
 #include <sys/eventfd.h>
 #include <cstring>
 #include <thread>
-#include "commands/command_worker.h"
 #include "commands/utils.h"
+#include "protocol/protocol.h"
+#include "command.h"
+#include "commands/parser.h"
+#include "commands/executor.h"
+constexpr uint32_t MAX_MESSAGE_SIZE = 16 * 1024 * 1024;
 
 class ClientWorker{
 public:
@@ -24,7 +28,6 @@ private:
     void handle_new_clients();
     void handle_client_data(int client_fd);
 
-    CommandWorker worker;
     int epoll_fd_ = -1;
     int event_fd_ = -1;
     std::thread thread_;

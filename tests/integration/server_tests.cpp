@@ -13,6 +13,7 @@
 
 #include "database/database.h"
 #include "commands/command.h"
+#include "protocol/protocol.h"
 #include "server/server.h"
 
 class ServerIntegrationTest : public ::testing::Test {
@@ -44,10 +45,9 @@ protected:
         }
     }
 
-    // Helper client to send a message and read the response
-    std::string SendAndReceive(const std::string& msg) {
+    Value SendAndReceive(const Command& command) {
         int sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (sock < 0) return "";
+        if (sock < 0) return Null{};
 
         // 1-second timeout so the test never hangs
         struct timeval tv{.tv_sec = 1, .tv_usec = 0};
@@ -61,30 +61,77 @@ protected:
 
         if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             close(sock);
-            return "";
+            return Null{};
         }
 
-        send(sock, msg.c_str(), msg.size(), 0);
+        msgpack::sbuffer payload;
+        msgpack::packer<msgpack::sbuffer> writer(payload);
+        writer.pack_array(2);
+        writer.pack(command.name);
+        writer.pack_array(static_cast<uint32_t>(command.args.size()));
+        for (const auto& arg : command.args) {
+            auto encoded = protocol::encode_value(arg);
+            auto value = msgpack::unpack(encoded.data(), encoded.size());
+            writer.pack(value.get());
+        }
+        const auto frame = protocol::frame_payload(payload);
 
-        char buffer[1024] = {0};
-        ssize_t bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        std::size_t sent = 0;
+        while (sent < frame.size()) {
+            const ssize_t count = send(sock, frame.data() + sent, frame.size() - sent, 0);
+            if (count <= 0) {
+                close(sock);
+                return Null{};
+            }
+            sent += static_cast<std::size_t>(count);
+        }
+
+        auto receive_exactly = [&](char* data, std::size_t size) {
+            std::size_t received = 0;
+            while (received < size) {
+                const ssize_t count = recv(sock, data + received, size - received, 0);
+                if (count <= 0) return false;
+                received += static_cast<std::size_t>(count);
+            }
+            return true;
+        };
+
+        unsigned char header[4];
+        if (!receive_exactly(reinterpret_cast<char*>(header), sizeof(header))) {
+            close(sock);
+            return Null{};
+        }
+
+        const uint32_t response_size =
+            (static_cast<uint32_t>(header[0]) << 24) |
+            (static_cast<uint32_t>(header[1]) << 16) |
+            (static_cast<uint32_t>(header[2]) << 8) |
+             static_cast<uint32_t>(header[3]);
+
+        std::vector<char> response(response_size);
+        if (!receive_exactly(response.data(), response.size())) {
+            close(sock);
+            return Null{};
+        }
+
         close(sock);
-
-        return (bytes > 0) ? std::string(buffer, bytes) : "";
+        auto decoded = msgpack::unpack(response.data(), response.size());
+        return protocol::decode_value(decoded.get());
     }
 };
 
 // --- Test Cases ---
 TEST_F(ServerIntegrationTest, ServerAnswers) {
     // Verifies the server's outer accept loop correctly handles new connections
-    std::string response = SendAndReceive("whatever\n");
-    EXPECT_FALSE(
-        response.empty()
-    );
+    Value response = SendAndReceive(Command{.name = "whatever", .args = {}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response));
+    EXPECT_FALSE(std::get<std::string>(response).empty());
 }
 TEST_F(ServerIntegrationTest, SetAndGetValue) {
-    std::string response = SendAndReceive("SET hello world\n");
-    EXPECT_EQ(response, "OK\n");
-    std::string response2 = SendAndReceive("GET hello\n");
-    EXPECT_EQ(response2, "world\n");
+    Value response = SendAndReceive(Command{.name = "SET", .args = {std::string("hello"), std::string("world")}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response));
+    EXPECT_EQ(std::get<std::string>(response), "OK");
+    Value response2 = SendAndReceive(Command{.name = "GET", .args = {std::string("hello")}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response2));
+    EXPECT_EQ(std::get<std::string>(response2), "world");
 }
