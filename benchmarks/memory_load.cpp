@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <msgpack.hpp>
 #include <netinet/in.h>
 #include <sstream>
 #include <string>
@@ -110,24 +111,64 @@ int connect_to_server(const sockaddr_in& address) {
     return socket_fd;
 }
 
-bool send_command_and_read_response(int socket_fd, const std::string& command, std::string& response) {
+std::vector<char> make_command_frame(const std::string& name, const std::string& key,
+                                     const std::string* value = nullptr) {
+    msgpack::sbuffer payload;
+    msgpack::packer<msgpack::sbuffer> writer(payload);
+    writer.pack_array(2);
+    writer.pack(name);
+    writer.pack_array(value == nullptr ? 1 : 2);
+
+    auto pack_string = [&](const std::string& text) {
+        writer.pack_array(2);
+        writer.pack_uint8(6);
+        writer.pack(text);
+    };
+
+    pack_string(key);
+    if (value != nullptr) pack_string(*value);
+
+    const auto size = static_cast<uint32_t>(payload.size());
+    std::vector<char> frame(4 + payload.size());
+    frame[0] = static_cast<char>(size >> 24);
+    frame[1] = static_cast<char>(size >> 16);
+    frame[2] = static_cast<char>(size >> 8);
+    frame[3] = static_cast<char>(size);
+    std::copy(payload.data(), payload.data() + payload.size(), frame.begin() + 4);
+    return frame;
+}
+
+bool send_command_and_read_response(int socket_fd, const std::vector<char>& command,
+                                    std::vector<char>& response) {
     std::size_t total_sent = 0;
     while (total_sent < command.size()) {
         const ssize_t sent = send(socket_fd, command.data() + total_sent, command.size() - total_sent, 0);
         if (sent <= 0) return false;
-        total_sent += sent;
+        total_sent += static_cast<std::size_t>(sent);
     }
 
-    char buffer[4096];
-    response.clear();
-    while (true) {
-        const ssize_t received = recv(socket_fd, buffer, sizeof(buffer) - 1, 0);
-        if (received <= 0) return false;
-        buffer[received] = '\0';
-        response.append(buffer, received);
-        if (response.find('\n') != std::string::npos) {
-            break;
+    auto receive_exactly = [&](char* data, std::size_t size) {
+        std::size_t total_received = 0;
+        while (total_received < size) {
+            const ssize_t received = recv(socket_fd, data + total_received, size - total_received, 0);
+            if (received <= 0) return false;
+            total_received += static_cast<std::size_t>(received);
         }
+        return true;
+    };
+
+    unsigned char header[4];
+    if (!receive_exactly(reinterpret_cast<char*>(header), sizeof(header))) return false;
+
+    const uint32_t response_size =
+        (static_cast<uint32_t>(header[0]) << 24) |
+        (static_cast<uint32_t>(header[1]) << 16) |
+        (static_cast<uint32_t>(header[2]) << 8) |
+         static_cast<uint32_t>(header[3]);
+
+    response.resize(response_size);
+    if (!response.empty() && !receive_exactly(response.data(), response.size())) {
+        return false;
     }
     return true;
 }
@@ -143,21 +184,16 @@ void execute_benchmark(std::size_t client_id, std::size_t num_requests, const Op
 
     result.latencies_us.reserve(num_requests);
     const std::string dummy_value(options.value_size_bytes, 'X');
-    std::string response;
+    std::vector<char> response;
     response.reserve(4096);
 
     for (std::size_t i = 0; i < num_requests; ++i) {
         const std::string key = "k_" + std::to_string(client_id) + "_" + std::to_string(i);
 
-        std::string cmd;
-        if (options.command == CommandType::SET) {
-            cmd = "SET " + key + " " + dummy_value + "\r\n";
-        } else if (options.command == CommandType::GET) {
-            cmd = "GET " + key + "\r\n";
-        } else {
-            cmd = (i % 2 == 0) ? ("SET " + key + " " + dummy_value + "\r\n")
-                               : ("GET " + key + "\r\n");
-        }
+        const bool is_set = options.command == CommandType::SET ||
+                            (options.command == CommandType::MIXED && i % 2 == 0);
+        const std::vector<char> cmd = make_command_frame(
+            is_set ? "SET" : "GET", key, is_set ? &dummy_value : nullptr);
 
         const auto start_time = std::chrono::steady_clock::now();
         if (send_command_and_read_response(sock_fd, cmd, response)) {
