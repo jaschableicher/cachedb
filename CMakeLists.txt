@@ -53,6 +53,7 @@ add_library(cache_db_core
     src/logger/aol.cpp
     src/server/client_pool.cpp
     src/protocol/coding.cpp
+    src/protocol/payload.cpp
 
 )
 target_include_directories(cache_db_core PUBLIC
