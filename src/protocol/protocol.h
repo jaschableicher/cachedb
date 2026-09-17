@@ -5,6 +5,6 @@ namespace protocol{
     
 
     msgpack::sbuffer encode_value(const Value& value);
-    Value decode_value(const char* data, size_t size);
+    Value decode_value(const msgpack::object& root);
     std::vector<char> frame_payload(const msgpack::sbuffer& payload);
 }

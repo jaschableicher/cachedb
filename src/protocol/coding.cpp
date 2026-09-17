@@ -61,29 +61,20 @@ msgpack::sbuffer encode_value(const Value& value){
     return buffer;
 }
 
-Value decode_value(const char* data, size_t size) {
-    size_t offset = 0;
-    auto handle = msgpack::unpack(data, size, offset);
-    const auto& root = handle.get();
-
-    if (offset != size) {
-        throw std::runtime_error("Trailing data after value");
-    }
-
+Value decode_value(const msgpack::object& root) {
     if (root.type != msgpack::type::ARRAY ||
         root.via.array.size != 2) {
         throw std::runtime_error("Expected [type ID, payload]");
     }
 
-    const auto type = static_cast<ValueType>(
-        root.via.array.ptr[0].as<uint8_t>());
+    const auto type =
+        static_cast<ValueType>(root.via.array.ptr[0].as<uint8_t>());
     const auto& payload = root.via.array.ptr[1];
 
     switch (type) {
         case ValueType::Null:
-            if (payload.type != msgpack::type::NIL) {
-                throw std::runtime_error("Expected null payload");
-            }
+            if (payload.type != msgpack::type::NIL)
+                throw std::runtime_error("Expected nil");
             return Null{};
 
         case ValueType::Bool:
@@ -99,22 +90,18 @@ Value decode_value(const char* data, size_t size) {
             return payload.as<double>();
 
         case ValueType::String:
-            if (payload.type != msgpack::type::STR) {
-                throw std::runtime_error("Expected string payload");
-            }
             return payload.as<std::string>();
 
         case ValueType::Bytes: {
-            if (payload.type != msgpack::type::BIN) {
-                throw std::runtime_error("Expected binary payload");
-            }
+            if (payload.type != msgpack::type::BIN)
+                throw std::runtime_error("Expected binary");
 
-            Bytes result(payload.via.bin.size);
-            for (size_t i = 0; i < result.size(); ++i) {
-                result[i] = static_cast<std::byte>(
+            Bytes bytes(payload.via.bin.size);
+            for (std::size_t i = 0; i < bytes.size(); ++i) {
+                bytes[i] = static_cast<std::byte>(
                     static_cast<unsigned char>(payload.via.bin.ptr[i]));
             }
-            return result;
+            return bytes;
         }
 
         default:

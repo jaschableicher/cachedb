@@ -94,65 +94,75 @@ void ClientWorker::handle_new_clients() {
 }
 
 
-std::vector<std::string> split_keep_newline(std::string_view str) {
-    std::vector<std::string> result;
-    size_t start = 0;
-    
-    while (start < str.size()) {
-        // Find the next newline character
-        size_t pos = str.find('\n', start);
-        
-        if (pos == std::string_view::npos) {
-            // No more newlines, grab the remaining chunk
-            result.emplace_back(str.substr(start));
-            break;
-        }
-        
-        // Extract substring *including* the newline character (+ 1)
-        size_t length = (pos - start) + 1;
-        result.emplace_back(str.substr(start, length));
-        
-        // Move start pointer past the newline
-        start = pos + 1;
-    }
-    
-    return result;
-}
 
 void ClientWorker::handle_client_data(int client_fd){
-    char buffer[1024];
-    ssize_t bytes_read =  recv(client_fd, buffer, sizeof(buffer) - 1,  0);
-    if(bytes_read <=0){
-        //client disconnected
+    char incoming[4096];
+
+    auto disconnect = [&]{
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, nullptr);
         message_pool_.erase(client_fd);
         close(client_fd);
-    }
-    else{
-        //split buffer at \n
-        message_pool_[client_fd].append(buffer,bytes_read);
-        std::vector<std::string> commands = split_keep_newline(message_pool_[client_fd]);
-        message_pool_[client_fd].clear();
-        for(int i = 0; i<commands.size();i++){
-            if(i==commands.size()-1){
-                if(commands[i][commands[i].size()-1]!='\n'){
-                    message_pool_[client_fd].append(commands[i]);
-                    return;
-                }
-            }
-            std::string reply = execute_command(db_, commands[i], true) + "\n";
+    };
+     
+    const ssize_t received = recv(client_fd, incoming, sizeof(incoming), 0);
 
-            ssize_t bytes_sent = send(client_fd, reply.c_str(), reply.length(), 0);
-            if (bytes_sent < 0) {
-                message_pool_.erase(client_fd);
-                close(client_fd);
+    if (received == 0) {
+        disconnect();
+        return;
+    }
+
+    if (received < 0) {
+        if (errno == EINTR || errno == EAGAIN ||errno == EWOULDBLOCK) {
+            return;
+        }
+        disconnect();
+        return;
+    }
+    auto& input = message_pool_[client_fd];
+    input.append(incoming, static_cast<std::size_t>(received));
+    while (input.size() >= 4) {
+        const auto* header = reinterpret_cast<const unsigned char*>(input.data());
+        const uint32_t payload_size =
+            (static_cast<uint32_t>(header[0]) << 24) |
+            (static_cast<uint32_t>(header[1]) << 16) |
+            (static_cast<uint32_t>(header[2]) << 8)  |
+             static_cast<uint32_t>(header[3]);
+
+        if (payload_size > MAX_MESSAGE_SIZE) {
+            disconnect();
+            return;
+        }
+        const std::size_t frame_size = 4 + payload_size;
+
+        // The remaining payload will arrive in a later recv().
+        if (input.size() < frame_size){
+            return;
+        }
+        Value reply;
+        try{
+            Command command = parse_command(input.data()+4, payload_size);
+
+            reply = execute_command(db_,command);
+        }catch(const std::exception& error){
+            reply= std::string("ERR protocol: ") + error.what();
+        }
+        input.erase(0, frame_size);//remove the frame
+
+        msgpack::v1::sbuffer response_payload = protocol::encode_value(reply);
+        std::vector<char> response_frame = protocol::frame_payload(response_payload);
+        std::size_t sent_total = 0;
+        while (sent_total < response_frame.size()) {
+            const ssize_t sent = send(client_fd, response_frame.data() + sent_total,response_frame.size() - sent_total, MSG_NOSIGNAL);
+
+            if (sent < 0 && errno == EINTR)
+                continue;
+
+            if (sent <= 0) {
+                disconnect();
                 return;
             }
-        }
 
-   
-    
-         
-        message_pool_[client_fd].clear();      
+            sent_total += static_cast<std::size_t>(sent);
+        }
     }
 } 
