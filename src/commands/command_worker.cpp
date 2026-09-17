@@ -43,9 +43,9 @@ void CommandWorker::run() {
         // Execute outside the lock
         if (task.has_value()) {
             // Accessing members directly via the optional pointer operator
-            std::string reply = execute_command(task->db, task->msg, true) + "\n";
+            Value reply = execute_command(task->db, task->msg, true);
 
-            ssize_t bytes_sent = send(task->client_fd, reply.c_str(), reply.length(), 0);
+            ssize_t bytes_sent = send(task->client_fd, &reply, sizeof(reply), 0);
             if (bytes_sent < 0) {
                 close(task->client_fd);
             }

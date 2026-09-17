@@ -6,6 +6,6 @@
 #include "utils.h"
 #include "command.h"
 
-std::string execute_command(Database& db, std::string line, bool logging = true);
+Value execute_command(Database& db, std::string line, bool logging = true);
 
 #endif
