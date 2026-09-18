@@ -33,7 +33,7 @@ private:
         
         std::unique_lock<std::shared_mutex> global_lock(resize_mutex_);
         //Recheck incase other thread rehashed
-        if (entry_count_.load() <= static_cast<std::size_t>(buckets_.size() * 0.9)) {
+        if (entry_count_.load() <= static_cast<std::size_t>(buckets_.size() * 4)) {
             return; 
         }
         std::vector<Bucket> new_buckets(new_size);
@@ -80,10 +80,10 @@ public:
             entry_count_.fetch_add(1, std::memory_order_relaxed);
         }
         //Max 4 values per list allowed
-        if (entry_count_.load() > static_cast<std::size_t>(buckets_.size() * 4)) {
+        if (entry_count_.load() > static_cast<std::size_t>(buckets_.size() *4)) {
             // Release our shared lock before rehashing to avoid self-deadlock
             global_lock.unlock(); 
-            rehash(buckets_.size() * 2);
+            rehash(buckets_.size() * 8);
         }
     }
 
