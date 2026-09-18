@@ -23,7 +23,7 @@ void Database::active_expiration_check(){
 
         int max_checks = 0;
         const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::scoped_lock lock(expiration_mutex_,cache_mutex_);
+        std::scoped_lock lock(expiration_mutex_);
         while(!expiration_heap_.empty() && expiration_heap_.top().expiry <= now && max_checks < 100){
             max_checks++;
             ExpirationEntry item = expiration_heap_.top();
@@ -43,7 +43,7 @@ void Database::active_expiration_check(){
 
 std::optional<std::int64_t> Database::set_expiry(const std::string& key,int64_t expires_in_seconds) {
     {
-        std::scoped_lock lock(cache_mutex_, expiration_mutex_);
+        std::scoped_lock lock(expiration_mutex_);
         const Val* cache_val = cache_.find(key);
         if (cache_val == nullptr) return std::nullopt;
         if(delete_if_expired(cache_val, key)) return std::nullopt;
@@ -66,7 +66,6 @@ std::optional<std::int64_t> Database::set_expiry(const std::string& key,int64_t 
 }
 
 int64_t Database::get_expiry(const std::string& key){
-    std::scoped_lock lock(cache_mutex_);
     const Val* cache_val = cache_.find(key);
     if(cache_val == nullptr) return -1;
     if(delete_if_expired(cache_val, key)) return -1;

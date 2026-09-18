@@ -17,10 +17,10 @@ bool Database::create_memory_snapshot(std::string& filename){
     out_file.write(reinterpret_cast<const char*>(&num_buckets), sizeof(num_buckets));
     std::scoped_lock lock(cache_mutex_);
     for(const auto& bucket : cache_){
-        uint32_t listSize = static_cast<uint32_t>(bucket.size());
+        uint32_t listSize = static_cast<uint32_t>(bucket.list.size());
         out_file.write(reinterpret_cast<const char*>(&listSize),sizeof(listSize));
         
-        for (const auto& item : bucket) {
+        for (const auto& item : bucket.list) {
             uint32_t keyLen = static_cast<uint32_t>(item.key.size());
             out_file.write(reinterpret_cast<const char*>(&keyLen), sizeof(keyLen));
             out_file.write(item.key.data(), keyLen);
