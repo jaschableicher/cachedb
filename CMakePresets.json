@@ -16,12 +16,28 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
+    },
+    {
+      "name": "linux-prod",
+      "displayName": "Linux Production",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/linux-prod",
+      "cacheVariables": {
+        "BUILD_TESTING": "OFF",
+        "BUILD_BENCHMARKS": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "linux-debug",
       "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-prod",
+      "configurePreset": "linux-prod"
     }
   ],
   "testPresets": [
