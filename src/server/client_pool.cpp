@@ -90,6 +90,7 @@ void ClientWorker::handle_new_clients() {
             close(client_fd);
         }
         message_pool_.try_emplace(client_fd);
+        set_nonblocking(client_fd);
     }
 }
 

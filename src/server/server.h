@@ -37,8 +37,6 @@ private:
 
     std::vector<std::unique_ptr<ClientWorker>> workers;
     size_t next_worker = 0;
-
-    void set_nonblocking(int fd);
 };
 
 

@@ -9,10 +9,7 @@ constexpr int NUM_WORKERS = 4;
 #include <fcntl.h>
 #include <poll.h>
 
-void TCPServer::set_nonblocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
+
 
 TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     //initialize tcp server with a port to listen to
@@ -75,9 +72,7 @@ void TCPServer::run(){
 
   
 	
-    //TODO: Run this in a thread pool, accept new clients and move them into a perspective thread
-    // Configure a max thread count which handles so not too many threads are existent
-    // Spawn and destroy threads via thread pool when they are needed/no longer needed
+    
     while(is_running_.load()){
         pollfd listener{socket_, POLLIN, 0};
         int ready = poll(&listener, 1, 100);

@@ -14,6 +14,7 @@
 #include "command.h"
 #include "commands/parser.h"
 #include "commands/executor.h"
+#include "utils.h"
 constexpr uint32_t MAX_MESSAGE_SIZE = 16 * 1024 * 1024;
 
 class ClientWorker{
