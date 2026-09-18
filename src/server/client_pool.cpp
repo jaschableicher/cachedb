@@ -113,12 +113,24 @@ void ClientWorker::handle_client_data(int client_fd){
     }
 
     if (received < 0) {
-        if (errno == EINTR || errno == EAGAIN ||errno == EWOULDBLOCK) {
-            return;
+        if (errno == EINTR) {
+            // Interrupted by system signal, try again immediately or return to event loop
+            return; 
         }
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // Socket buffer is empty. This is normal for non-blocking.
+            // Just return and wait for the next EPOLLIN event.
+            return; 
+        }
+        // Any other error means a real failure (e.g., ECONNRESET)
+        disconnect();
+        return;
+    } else if (received == 0) {
+        // Client closed the connection gracefully
         disconnect();
         return;
     }
+
     auto& input = message_pool_[client_fd];
     input.append(incoming, static_cast<std::size_t>(received));
     while (input.size() >= 4) {
