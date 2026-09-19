@@ -1,9 +1,9 @@
 //When running for now simply takes in a line which is brought in, executes the command via executor and sends the result back, that is it
 //For now only one connection possible!
 #include "server.h"
-int MAX_CLIENTS=6000;
+
 constexpr int NUM_WORKERS = 4;
-///4095 is a hard limit at least on the wsl company device
+
 //TODO: Test on home device with different configuration!
 
 #include <fcntl.h>
@@ -32,7 +32,7 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
         return;
     }
 
-     if (listen(socket_, 65535) < 0) {
+     if (listen(socket_, SOMAXCONN) < 0) {
         throw std::runtime_error("Listening to port " + std::to_string(tcp_port_) + " failed");
         return;
     }
