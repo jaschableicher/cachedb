@@ -1,23 +1,20 @@
 //When running for now simply takes in a line which is brought in, executes the command via executor and sends the result back, that is it
 //For now only one connection possible!
 #include "server.h"
-int MAX_CLIENTS=6000;
+
 constexpr int NUM_WORKERS = 4;
-///4095 is a hard limit at least on the wsl company device
+
 //TODO: Test on home device with different configuration!
 
 #include <fcntl.h>
 #include <poll.h>
 
-void TCPServer::set_nonblocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
+
 
 TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     //initialize tcp server with a port to listen to
     socket_=socket(AF_INET, SOCK_STREAM, 0);//SOCK_DGRAM for udp
-    //TODO: Error Handling
+
     if(socket_ <0){
         throw std::runtime_error("TCP Server not able to be started");
         return;
@@ -30,12 +27,11 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(tcp_port_);
     if (bind(socket_, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        //TODO: Error Handling
         throw std::runtime_error("Cannot bind to Port: " +  std::to_string(tcp_port_));
         return;
     }
 
-     if (listen(socket_, 65535) < 0) {
+     if (listen(socket_, SOMAXCONN) < 0) {
         throw std::runtime_error("Listening to port " + std::to_string(tcp_port_) + " failed");
         return;
     }
@@ -75,9 +71,7 @@ void TCPServer::run(){
 
   
 	
-    //TODO: Run this in a thread pool, accept new clients and move them into a perspective thread
-    // Configure a max thread count which handles so not too many threads are existent
-    // Spawn and destroy threads via thread pool when they are needed/no longer needed
+    
     while(is_running_.load()){
         pollfd listener{socket_, POLLIN, 0};
         int ready = poll(&listener, 1, 100);

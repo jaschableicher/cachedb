@@ -79,6 +79,10 @@ if(BUILD_BENCHMARKS)
     add_executable(memory_load benchmarks/memory_load.cpp)
     target_link_libraries(memory_load PRIVATE Threads::Threads msgpack-cxx)
     enable_warnings(memory_load)
+
+    add_executable(database_load benchmarks/database_load.cpp)
+    target_link_libraries(database_load PRIVATE cache_db_core Threads::Threads)
+    enable_warnings(database_load)
 endif()
 
 if(BUILD_TESTING)
