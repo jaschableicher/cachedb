@@ -41,6 +41,6 @@ private:
     std::queue<int> client_queue_;
     std::mutex queue_mutex_;
     std::atomic<bool> running_;
-    std::unordered_map<int,CientState> message_pool_;
+    std::unordered_map<int,ClientState> message_pool_;
     Database& db_;
 };
