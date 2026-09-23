@@ -20,9 +20,9 @@ ClientWorker::ClientWorker(Database& db):db_(db){
         throw std::runtime_error("Failed to create eventfd in worker");
     }
     epoll_event event;
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLOUT;
     event.data.fd = event_fd_;
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event_fd_, &event)) {
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, event_fd_, &event)) {
             throw std::runtime_error("Failed to add event_fd to epoll");
     }
     running_=true;
@@ -98,7 +98,7 @@ void ClientWorker::handle_new_clients() {
 
 void ClientWorker::handle_client_data(int client_fd){
     char incoming[4096];
-
+    ClientState& current_client = message_pool_.at(client_fd);
     auto disconnect = [&]{
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, nullptr);
         message_pool_.erase(client_fd);
@@ -160,22 +160,26 @@ void ClientWorker::handle_client_data(int client_fd){
             reply= std::string("ERR protocol: ") + error.what();
         }
         input.erase(0, frame_size);//remove the frame
-
+       
         msgpack::v1::sbuffer response_payload = protocol::encode_value(reply);
         std::vector<char> response_frame = protocol::frame_payload(response_payload);
         std::size_t sent_total = 0;
         while (sent_total < response_frame.size()) {
-            const ssize_t sent = send(client_fd, response_frame.data() + sent_total,response_frame.size() - sent_total, MSG_NOSIGNAL);
+            const ssize_t sent = send(client_fd, response_frame.data() + client_state.sent_offset,response_frame.size() - client_state.sent_offset, MSG_NOSIGNAL);
 
             if (sent < 0 && errno == EINTR)
                 continue;
+            
+            if (sent <0 && (errno==EAGAIN || errno == EWOULDBLOCK)){
+                return;
+            }
 
             if (sent <= 0) {
                 disconnect();
                 return;
             }
 
-            sent_total += static_cast<std::size_t>(sent);
+            client_state.sent_offset += static_cast<std::size_t>(sent);
         }
     }
 } 

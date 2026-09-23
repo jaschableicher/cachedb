@@ -14,7 +14,7 @@ constexpr int NUM_WORKERS = 4;
 TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     //initialize tcp server with a port to listen to
     socket_=socket(AF_INET, SOCK_STREAM, 0);//SOCK_DGRAM for udp
-    //TODO: Error Handling
+
     if(socket_ <0){
         throw std::runtime_error("TCP Server not able to be started");
         return;
@@ -27,7 +27,6 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(tcp_port_);
     if (bind(socket_, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        //TODO: Error Handling
         throw std::runtime_error("Cannot bind to Port: " +  std::to_string(tcp_port_));
         return;
     }

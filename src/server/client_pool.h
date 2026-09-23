@@ -25,6 +25,12 @@ public:
     void join();
     void add_client(int client_fd);
 private:
+    struct ClientState {
+            std::string input;
+            std::vector<char> output;
+            std::size_t sent_offset = 0;
+    };
+        
     void run();
     void handle_new_clients();
     void handle_client_data(int client_fd);
@@ -35,6 +41,6 @@ private:
     std::queue<int> client_queue_;
     std::mutex queue_mutex_;
     std::atomic<bool> running_;
-    std::unordered_map<int,std::string> message_pool_;
+    std::unordered_map<int,CientState> message_pool_;
     Database& db_;
 };
