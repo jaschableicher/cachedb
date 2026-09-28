@@ -53,6 +53,7 @@ add_library(cache_db_core
     src/server/client_pool.cpp
     src/protocol/coding.cpp
     src/protocol/payload.cpp
+    src/logger/replayer.cpp
 
 )
 target_include_directories(cache_db_core PUBLIC
@@ -68,6 +69,10 @@ enable_warnings(cache_db_core)
 add_executable(cache_db src/main.cpp)
 target_link_libraries(cache_db PRIVATE cache_db_core)
 enable_warnings(cache_db)
+
+add_executable(cache_db_cli src/cli.cpp)
+target_link_libraries(cache_db_cli PRIVATE cache_db_core)
+enable_warnings(cache_db_cli)
 
 option(BUILD_BENCHMARKS "Build standalone benchmark executables" OFF)
 #cmake --preset linux-debug -DBUILD_BENCHMARKS=ON
