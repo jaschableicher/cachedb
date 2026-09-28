@@ -32,27 +32,87 @@ Logger::~Logger(){
     }
     close(aol_fd_);
 }
-//How to do this as the direct logging could slow down the returns of set command significantly. 
-// Idea is to have a simple list to append to which is read out for then to be writen to file asap
-// but as a thread
-void Logger::log_command(std::string& line){
+ void Logger::append_bytes(const Bytes& bytes) {
+    uint32_t len = static_cast<uint32_t>(bytes.size());
+    append_raw(len);
+    if (len > 0) {
+        const char* ptr = reinterpret_cast<const char*>(bytes.data());
+        active_buffer_.insert(active_buffer_.end(), ptr, ptr + len);
+    }
+}
+void Logger::serialize_value(const Value& val) {
+        // We use std::visit to handle the active type of the variant.
+        // We map the active type to your exact ValueType enum.
+        std::visit([this](const auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+
+            if constexpr (std::is_same_v<T, Null>) {
+                append_raw(ValueType::Null);
+                // Null/monostate has 0 bytes of payload
+            }
+            else if constexpr (std::is_same_v<T, bool>) {
+                append_raw(ValueType::Bool);
+                append_raw(arg);
+            }
+            else if constexpr (std::is_same_v<T, int64_t>) {
+                append_raw(ValueType::Int64);
+                append_raw(arg);
+            }
+            else if constexpr (std::is_same_v<T, uint64_t>) {
+                append_raw(ValueType::UInt64);
+                append_raw(arg);
+            }
+            else if constexpr (std::is_same_v<T, double>) {
+                append_raw(ValueType::Double);
+                append_raw(arg);
+            }
+            else if constexpr (std::is_same_v<T, std::string>) {
+                append_raw(ValueType::String);
+                append_string(arg);
+            }
+            else if constexpr (std::is_same_v<T, Bytes>) {
+                append_raw(ValueType::Bytes);
+                append_bytes(arg);
+            }
+            // Array, Map, and Extension are currently ignored as requested
+        }, val);
+    }
+
+
+void Logger::append_string(const std::string& str) {
+    uint32_t len = static_cast<uint32_t>(str.size());
+    append_raw(len);
+    if (len > 0) {
+        active_buffer_.insert(active_buffer_.end(), str.begin(), str.end());
+    }
+}
+
+
+void Logger::log_command(Command command){
     //Check here whether to log or not!
     //For now simply only del and set
-    
-    
-    //TODO: later maybe via registry to have a simple log bool to check the command there via e.g. Registry::get_instance()->should_log(std::string& command);
-    if(!line.starts_with("DEL") && !line.starts_with("SET")) return;
 
     std::scoped_lock lock(data_lock_);
-    active_buffer_.append(line);
-    if (line.empty() || line.back() != '\n') active_buffer_.append("\n");
+    if(replaying_) return; //Do not log replays!
+    //Turn command into binary, append to buffer
+    //Make the command
+
+    append_string(command.name);
+    uint32_t arg_count = static_cast<uint32_t>(command.args.size());
+    append_raw(arg_count);
+
+    for(const auto& arg:command.args){
+        serialize_value(arg);
+    }
 
 }
 void Logger::log_buffer(){
-     {
+    
+    {
         std::scoped_lock lock(data_lock_);
         std::swap(active_buffer_,background_buffer_);
     }
+    if(background_buffer_.empty()) return;
     // Producers append to active_buffer_; write background_buffer_ outside the lock.
     std::size_t written = 0;
     while (written < background_buffer_.size()) {
@@ -85,13 +145,12 @@ void Logger::replay_commands(Database& db){
     //read in file line per line
     //then simply call executor for this
     // Read through a separate stream: the append descriptor is write-only.
-    std::ifstream file("database.aof");
-    if (!file) {
-        return;
-    }
+    replaying_ = true;
+    CommandContext context{db};
 
-    std::string line;
-    while (std::getline(file, line)) {
-       // execute_command(db, line, false);
-    }
+    LogReplayer replayer("database.aof",context);
+  
+    replayer.replay_commands();
+
+    replaying_=false;
 }

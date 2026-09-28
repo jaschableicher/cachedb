@@ -46,7 +46,7 @@ struct CommandDescriptor {
     std::string name;
 
     std::vector<ArgumentSpec> arguments;
-
+    bool changes_data=false;
     CommandHandler handler;
 };
 
