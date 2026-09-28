@@ -75,6 +75,11 @@ protected:
     }
 
     Value SendAndReceive(int socket_fd, const Command& command) {
+        if (!SendFrame(socket_fd, MakeFrame(command))) return Null{};
+        return ReceiveReply(socket_fd);
+    }
+
+    std::vector<char> MakeFrame(const Command& command) {
         msgpack::sbuffer payload;
         msgpack::packer<msgpack::sbuffer> writer(payload);
         writer.pack_array(2);
@@ -85,17 +90,23 @@ protected:
             auto value = msgpack::unpack(encoded.data(), encoded.size());
             writer.pack(value.get());
         }
-        const auto frame = protocol::frame_payload(payload);
+        return protocol::frame_payload(payload);
+    }
 
+    bool SendFrame(int socket_fd, const std::vector<char>& frame) {
         std::size_t sent = 0;
         while (sent < frame.size()) {
             const ssize_t count = send(socket_fd, frame.data() + sent, frame.size() - sent, MSG_NOSIGNAL);
+            if (count < 0 && errno == EINTR) continue;
             if (count <= 0) {
-                return Null{};
+                return false;
             }
             sent += static_cast<std::size_t>(count);
         }
+        return true;
+    }
 
+    Value ReceiveReply(int socket_fd) {
         auto receive_exactly = [&](char* data, std::size_t size) {
             std::size_t received = 0;
             while (received < size) {
@@ -161,3 +172,4 @@ TEST_F(ServerIntegrationTest, MultipleCommandsOnSameConnection) {
     ASSERT_TRUE(std::holds_alternative<std::string>(second_get));
     EXPECT_EQ(std::get<std::string>(second_get), value);
 }
+
