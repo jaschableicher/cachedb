@@ -70,9 +70,9 @@ add_executable(cache_db src/main.cpp)
 target_link_libraries(cache_db PRIVATE cache_db_core)
 enable_warnings(cache_db)
 
-add_executable(cache_db_cli src/cli.cpp)
-target_link_libraries(cache_db_cli PRIVATE cache_db_core)
-enable_warnings(cache_db_cli)
+add_executable(cli src/cli.cpp)
+target_link_libraries(cli PRIVATE cache_db_core)
+enable_warnings(cli)
 
 option(BUILD_BENCHMARKS "Build standalone benchmark executables" OFF)
 #cmake --preset linux-debug -DBUILD_BENCHMARKS=ON

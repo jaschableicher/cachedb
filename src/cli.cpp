@@ -1,4 +1,5 @@
-#include "commands/parser.h"
+#include "commands/utils.h"
+#include "protocol/protocol.h"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -15,6 +16,71 @@
 #include <unistd.h>
 
 namespace {
+
+bool iequals(std::string_view left, std::string_view right) noexcept {
+    if (left.size() != right.size()) return false;
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        if ((left[index] | 0x20) != (right[index] | 0x20)) return false;
+    }
+    return true;
+}
+
+Value parse_scalar_value(std::string_view input) {
+    if (input.empty()) return std::string{};
+
+    const char first_character = input.front();
+    const char* const first = input.data();
+    const char* const last = first + input.size();
+    if ((first_character >= '0' && first_character <= '9') ||
+        first_character == '-' || first_character == '+') {
+        const char* start = first_character == '+' ? first + 1 : first;
+        int64_t integer = 0;
+        const auto integer_result = std::from_chars(start, last, integer);
+        if (integer_result.ec == std::errc{} && integer_result.ptr == last) return integer;
+
+        double number = 0.0;
+        const auto number_result = std::from_chars(first, last, number);
+        if (number_result.ec == std::errc{} && number_result.ptr == last) return number;
+        return std::string(input);
+    }
+    if (iequals(input, "nil") || iequals(input, "null") || input == "(nil)") return Null{};
+    if (iequals(input, "true")) return true;
+    if (iequals(input, "false")) return false;
+    return std::string(input);
+}
+
+std::vector<Value> parse_arguments(std::string_view input) {
+    std::vector<Value> arguments;
+    for (std::size_t index = 0; index < input.size();) {
+        while (index < input.size() && std::isspace(static_cast<unsigned char>(input[index]))) ++index;
+        if (index >= input.size()) break;
+
+        if (input[index] == '"' || input[index] == '\'') {
+            const char quotation = input[index++];
+            std::string argument;
+            while (index < input.size() && input[index] != quotation) {
+                if (input[index] == '\\' && index + 1 < input.size()) {
+                    ++index;
+                    switch (input[index]) {
+                        case 'n': argument += '\n'; break;
+                        case 't': argument += '\t'; break;
+                        default: argument += input[index]; break;
+                    }
+                } else {
+                    argument += input[index];
+                }
+                ++index;
+            }
+            if (index < input.size() && input[index] == quotation) ++index;
+            arguments.push_back(argument);
+        } else {
+            const std::size_t start = index;
+            while (index < input.size() && !std::isspace(static_cast<unsigned char>(input[index]))) ++index;
+            arguments.push_back(parse_scalar_value(input.substr(start, index - start)));
+        }
+    }
+    return arguments;
+}
 
 void print_usage(const char* executable) {
     std::cout << "Usage: " << executable << " [--host <IPv4>] [--port <1-65535>]\n"
