@@ -20,7 +20,7 @@ ClientWorker::ClientWorker(Database& db):db_(db){
         throw std::runtime_error("Failed to create eventfd in worker");
     }
     epoll_event event;
-    event.events = EPOLLIN | EPOLLOUT;
+    event.events = EPOLLIN;
     event.data.fd = event_fd_;
     if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event_fd_, &event)) {
             throw std::runtime_error("Failed to add event_fd to epoll");
@@ -163,8 +163,8 @@ void ClientWorker::handle_client_data(int client_fd){
        
         msgpack::v1::sbuffer response_payload = protocol::encode_value(reply);
         client_state.output = protocol::frame_payload(response_payload);
-        std::size_t sent_total = 0;
-        while (sent_total < client_state.output.size()) {
+        client_state.sent_offset = 0;
+        while (client_state.sent_offset < client_state.output.size()) {
             const ssize_t sent = send(client_fd, client_state.output.data() + client_state.sent_offset,client_state.output.size() - client_state.sent_offset, MSG_NOSIGNAL);
 
             if (sent < 0 && errno == EINTR)

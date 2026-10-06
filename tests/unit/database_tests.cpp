@@ -1,6 +1,22 @@
 #include <gtest/gtest.h>
 #include "database/database.h"
 
+TEST(DatabaseTest, RepeatedShutdownWithNoExpirations) {
+    for (int i = 0; i < 1000; ++i) {
+        Database db;
+        std::this_thread::yield();
+    }
+}
+
+TEST(DatabaseTest, RepeatedShutdownWithPendingExpiration) {
+    for (int i = 0; i < 1000; ++i) {
+        Database db;
+        db.set("key", "value");
+        ASSERT_EQ(db.set_expiry("key", 3600), 3600);
+        std::this_thread::yield();
+    }
+}
+
 TEST(DatabaseTest, SetAndGet) {
     Database db;
 

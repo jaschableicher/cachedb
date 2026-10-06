@@ -11,6 +11,7 @@ void register_commands() {
             { ValueType::String, false },
             { ValueType::Any, false }
         },
+        .changes_data= true,
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value {
             const auto& key = std::get<std::string>(args[0]);
             
@@ -41,6 +42,7 @@ void register_commands() {
         .arguments = {
             { ValueType::String, false }
         },
+        .changes_data= true,
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value {
             const auto& key = std::get<std::string>(args[0]);
             return int64_t{ctx.db.erase(key) ? 1 : 0};

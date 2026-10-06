@@ -1,5 +1,5 @@
 #include "registry.h"
-
+#include "logger/logger.h"
 #include <charconv>
 #include <iostream>
 #include <limits>
@@ -77,6 +77,10 @@ ExecuteReturn Registry::execute( CommandContext& context,const Command& command)
                 EXECUTEERROR
             };
         }
+    }
+    if(descriptor->changes_data){
+        //Log the full command to aol file as binary!
+        Logger::get_instance()->log_command(command);//FIXME: Copies command currently as this func is const!
     }
     Value value = descriptor->handler(
             context,

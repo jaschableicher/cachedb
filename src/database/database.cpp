@@ -8,7 +8,10 @@ Database::Database(): running_(true){
 };
 
 Database::~Database(){
-    running_.store(false);
+    {
+        std::scoped_lock lock(expiration_mutex_);
+        running_.store(false);
+    }
     expiration_condition_.notify_one();
     expiration_thread.join();
 }
