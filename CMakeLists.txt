@@ -112,6 +112,7 @@ if(BUILD_TESTING)
     
     enable_warnings(unit_tests)
     add_test(NAME unit_tests COMMAND unit_tests)
+    set_tests_properties(unit_tests PROPERTIES TIMEOUT 60)
 
     file(GLOB INTEGRATION_TEST_SOURCES CONFIGURE_DEPENDS tests/integration/*.cpp)
     add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})

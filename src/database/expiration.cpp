@@ -6,6 +6,7 @@ void Database::active_expiration_check(){
     while(running_.load()){
         {
             std::unique_lock lock(expiration_mutex_);
+            if (!running_.load()) break;
 
             if (expiration_heap_.empty()) {
                 expiration_condition_.wait(lock, [this] {
