@@ -132,7 +132,7 @@ void register_commands() {
                 case SnapshotReturn::Success:
                     return "Success";
                 default:
-                    return "ERR: Unknown error";
+                    return "ERR: Corrupted Snapshot File";
             };
         }
     });
