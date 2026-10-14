@@ -93,18 +93,18 @@ void register_commands() {
         },
         .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
             //Calls logger saving and dumps the memory into a .db file
+            std::string filename = "dump.db";
+
             if(!args.empty()){
                 //check if it is a valid location to dump to
                 //If a file of that .db name exists simply overwrite it
                 const auto& dump_location = std::get<std::string>(args[0]);
-                if(!dump_location.ends_with(".db")) 
+                if(!dump_location.ends_with(".db")){
                     return "ERR: dump file must be a .db file";
-                //If an absolute path is given, save the db there
-                //If only relative, save in subpath of standard dump location
+                }
+                filename = dump_location;
                 
-
             }
-            std::string filename = "dump.db";
             //Dump simply in dump.db for now to test
             return ctx.db.create_memory_snapshot(filename) ? "Successfully dumped memory" : "ERR: Dumping memory boom";
             
@@ -118,10 +118,15 @@ void register_commands() {
             { ValueType::String, true } // optional file to load in, if file is selected, wal log will not be checked to load back newer values into cache!
         },
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value{
-            if(!args.empty()){
-
-            }
             std::string filename = "dump.db";
+
+            if(!args.empty()){
+                const auto& dump_location = std::get<std::string>(args[0]);
+                if(!dump_location.ends_with(".db")){
+                    return "ERR: dump file must be a .db file";
+                }
+                filename=dump_location;
+            }
             //Simply read in dump.db for now to test!
             switch(ctx.db.read_memory_snapshot(filename)){
                 case SnapshotReturn::Success:
