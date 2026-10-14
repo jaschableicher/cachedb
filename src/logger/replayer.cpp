@@ -1,10 +1,11 @@
 #include "logger.h"
+#include <filesystem>
 
 
 
 
 LogReplayer::LogReplayer(std::string filename, CommandContext& context)
-    : context_(context) {
+    : filename_(filename), context_(context) {
     file.open(filename);
     if (!file) {
         return;
@@ -65,9 +66,19 @@ void LogReplayer::replay_commands(){
         cmd.name = read_string(file);
         uint32_t args_count = read_raw<uint32_t>(file);
         cmd.args.reserve(args_count);
-        
-        for (uint32_t i = 0; i < args_count; ++i) {
-            cmd.args.push_back(deserialize_value(file));
+        try{
+            for (uint32_t i = 0; i < args_count; ++i) {
+                Value argument = deserialize_value(file);
+                cmd.args.push_back(argument);
+            }
+        }catch(std::exception&e ){
+            std::cout << "Error parsing log file: " << e.what() << "\n";
+            std::cout << "Moving corrupted file to make space for new one\n";
+            file.close();
+            std::filesystem::path corrupted_filename(filename_);
+            corrupted_filename.replace_filename(corrupted_filename.stem().string() + "_corrupted.aof");
+            std::filesystem::rename(filename_, corrupted_filename);
+            return;
         }
         Registry::get_instance()->execute(context_,cmd);//Handling return doesnt matter here for now
     }
