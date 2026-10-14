@@ -33,6 +33,7 @@ private:
     Value deserialize_value(std::istream& is);
 
     std::ifstream file;
+    std::string filename_;
     CommandContext context_;
 };
 
