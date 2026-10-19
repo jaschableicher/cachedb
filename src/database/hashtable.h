@@ -86,15 +86,17 @@ public:
             rehash(buckets_.size() * 8);
         }
     }
-
-    const V* find(const std::string& key) const {
-        const auto& bucket = buckets_[index(key,bucket_count())];
-        std::shared_lock<std::shared_mutex> lock(bucket.mtx);
-
+    bool with_read(const std::string& key, F&& callback) const {
+        std::shared_lock table_lock(resize_mutex_);
+        const auto& bucket = buckets_[index(key, buckets_.size())];
+        std::shared_lock bucket_lock(bucket.mtx);
         for (const auto& entry : bucket.list) {
-            if (entry.key == key) return &entry.data;
+            if (entry.key == key) {
+                std::forward<F>(callback)(entry.data);
+                return true;
+            }
         }
-        return nullptr;
+        return false;
     }
 
     bool erase(const std::string& key) {
