@@ -23,10 +23,14 @@ void Database::set(std::string key, Value value) {
 }
 
 std::optional<Value> Database::get(const std::string& key){
-    const Val* cache_val = cache_.find(key);
-    if(cache_val == nullptr) return std::nullopt;
-    if(delete_if_expired(cache_val, key)) return std::nullopt;
-    return cache_val->data;
+    Val cache_val;
+    auto getter = [&](Val entry_data){
+        cache_val=entry_data;
+    };
+    const bool read = cache_.with_read(key, getter);
+    if(!read) return std::nullopt;
+    if(delete_if_expired(&cache_val, key)) return std::nullopt;
+    return cache_val.data;
 }
 
 bool Database::erase(const std::string& key){
