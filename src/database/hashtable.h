@@ -2,10 +2,13 @@
 #define HASHTABLE_H
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <string>
+#include <utility>
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
@@ -86,6 +89,7 @@ public:
             rehash(buckets_.size() * 8);
         }
     }
+    template <typename F>
     bool with_read(const std::string& key, F&& callback) const {
         std::shared_lock table_lock(resize_mutex_);
         const auto& bucket = buckets_[index(key, buckets_.size())];
