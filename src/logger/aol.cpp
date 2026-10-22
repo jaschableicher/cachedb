@@ -37,7 +37,7 @@ Logger::~Logger(){
     append_raw(len);
     if (len > 0) {
         const char* ptr = reinterpret_cast<const char*>(bytes.data());
-        active_buffer_.insert(active_buffer_.end(), ptr, ptr + len);
+        binary_commands.insert(binary_commands.end(), ptr, ptr + len);
     }
 }
 void Logger::serialize_value(const Value& val) {
@@ -83,28 +83,19 @@ void Logger::append_string(const std::string& str) {
     uint32_t len = static_cast<uint32_t>(str.size());
     append_raw(len);
     if (len > 0) {
-        active_buffer_.insert(active_buffer_.end(), str.begin(), str.end());
+        binary_commands.insert(binary_commands.end(), str.begin(), str.end());
     }
 }
 
 
-void Logger::log_command(Command command){
+void Logger::log_command(const Command& command){
     //Check here whether to log or not!
     //For now simply only del and set
 
     std::scoped_lock lock(data_lock_);
     if(replaying_) return; //Do not log replays!
-    //Turn command into binary, append to buffer
-    //Make the command
 
-    append_string(command.name);
-    uint32_t arg_count = static_cast<uint32_t>(command.args.size());
-    append_raw(arg_count);
-
-    for(const auto& arg:command.args){
-        serialize_value(arg);
-    }
-
+    active_buffer_.push_back(command);
 }
 void Logger::log_buffer(){
     
@@ -113,11 +104,22 @@ void Logger::log_buffer(){
         std::swap(active_buffer_,background_buffer_);
     }
     if(background_buffer_.empty()) return;
+    for(const Command& command:background_buffer_){
+        append_string(command.name);
+        uint32_t arg_count = static_cast<uint32_t>(command.args.size());
+        append_raw(arg_count);
+        for(const auto& arg:command.args){
+            serialize_value(arg);
+        }
+    }
+    
+
+    
     // Producers append to active_buffer_; write background_buffer_ outside the lock.
     std::size_t written = 0;
-    while (written < background_buffer_.size()) {
-        const ssize_t count = write(aol_fd_, background_buffer_.data() + written,
-                                    background_buffer_.size() - written);
+    while (written < binary_commands.size()) {
+        const ssize_t count = write(aol_fd_, binary_commands.data() + written,
+                                    binary_commands.size() - written);
         if (count < 0 && errno == EINTR) continue;
         if (count <= 0) {
             std::cerr << "Failed to write logger buffer" << std::endl;
@@ -126,6 +128,7 @@ void Logger::log_buffer(){
         written += static_cast<std::size_t>(count);
     }
     background_buffer_.clear();
+    binary_commands.clear();
     //Wait for line to be added to the disk
     if(fdatasync(aol_fd_)==-1){
         std::cerr << "Failed to write to disk" << std::endl;
