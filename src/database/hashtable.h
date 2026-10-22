@@ -67,7 +67,7 @@ public:
     auto begin() const noexcept { return buckets_.begin(); }
     auto end() const noexcept   { return buckets_.end(); }
 
-    void insert(const std::string& key, const V& value) {
+    void insert(const std::string& key, V value) {
         std::shared_lock<std::shared_mutex> global_lock(resize_mutex_);
         size_t idx = index(key, bucket_count());
         auto& bucket = buckets_[idx];
@@ -75,7 +75,7 @@ public:
             std::unique_lock<std::shared_mutex> lock(bucket.mtx);
             for (auto& entry : bucket.list) {
                 if (entry.key == key) {
-                    entry.data = value;
+                    entry.data = std::move(value);
                     return;
                 }
             }
