@@ -45,7 +45,7 @@ public:
         }
         return instance_;
     }
-    void log_command(Command command);
+    void log_command(const Command& command);
     static void destroy_instance(){
         delete instance_;
         instance_ = nullptr;
@@ -60,7 +60,7 @@ private:
     template<typename T>
     void append_raw(const T& val) {
         const char* ptr = reinterpret_cast<const char*>(&val);
-        active_buffer_.insert(active_buffer_.end(), ptr, ptr + sizeof(T));
+        binary_commands.insert(binary_commands.end(), ptr, ptr + sizeof(T));
     }
     void append_string(const std::string& str);
     void serialize_value(const Value& val);
@@ -72,8 +72,9 @@ private:
     std::mutex data_lock_;
 
     
-    std::vector<char> active_buffer_;
-    std::vector<char> background_buffer_;
+    std::vector<Command> active_buffer_;
+    std::vector<Command> background_buffer_;
+    std::vector<char> binary_commands;
     bool replaying_=false;
 };
 

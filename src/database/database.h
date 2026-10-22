@@ -28,7 +28,7 @@ class Database {
 public:
     Database();
     ~Database();
-    void set(std::string key, Value value);
+    void set(std::string key, const Value& value);
 
     std::optional<Value> get(
         const std::string& key

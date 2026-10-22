@@ -18,8 +18,8 @@ Database::~Database(){
 
 
 
-void Database::set(std::string key, Value value) {
-    cache_.insert(key, {value}); // If expiry was set before it is now automatically unset!
+void Database::set(std::string key, const Value& value) {
+    cache_.insert(key, Val{value}); // If expiry was set before it is now automatically unset!
 }
 
 std::optional<Value> Database::get(const std::string& key){

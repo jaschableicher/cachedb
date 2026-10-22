@@ -1,302 +1,236 @@
-#include <algorithm>
+#include "load_common.h"
+
+#include <array>
 #include <arpa/inet.h>
-#include <atomic>
-#include <chrono>
 #include <cerrno>
-#include <cstdlib>
-#include <iomanip>
-#include <iostream>
+#include <cstring>
+#include <fcntl.h>
+#include <memory>
 #include <msgpack.hpp>
-#include <netinet/in.h>
-#include <sstream>
-#include <string>
-#include <string_view>
+#include <netinet/tcp.h>
+#include <poll.h>
 #include <sys/socket.h>
-#include <thread>
-#include <unistd.h>
-#include <vector>
 
 namespace {
-
-constexpr const char* HOST = "127.0.0.1";
-constexpr unsigned short PORT = 5634;
-constexpr int TIMEOUT_SEC = 5;
-
-enum class CommandType {
-    SET,
-    GET,
-    MIXED
+constexpr std::size_t max_frame = 16 * 1024 * 1024;
+enum class Expected { Ok, Value, Missing, Deleted };
+struct Request {
+    std::vector<char> frame;
+    Expected expected;
+    load::Clock::time_point started{};
 };
-
-struct Options {
-    std::size_t clients = 1000;
-    std::size_t total_requests = 1000000;
-    CommandType command = CommandType::GET;
-    std::size_t value_size_bytes = 128;
-};
-
-struct WorkerResult {
-    std::vector<uint32_t> latencies_us;
-    std::size_t failed_requests = 0;
-    bool connection_failed = false;
-};
-
-void print_usage(const char* executable) {
-    std::cout
-        << "Usage: " << executable << " [options]\n"
-        << "  --clients <count>       Total concurrent connections (default: 1000)\n"
-        << "  --requests <count>      Total requests to distribute across clients (default: 1000000)\n"
-        << "  --command <SET|GET|MIX> Command to benchmark (default: GET)\n"
-        << "  --value-size <bytes>    Payload size for SET (default: 128)\n";
-}
-
-bool parse_positive_number(std::string_view text, unsigned long long& value) {
-    if (text.empty()) return false;
-    char* end = nullptr;
-    errno = 0;
-    const auto parsed = std::strtoull(text.data(), &end, 10);
-    if (errno != 0 || end != text.data() + text.size()) return false;
-    value = parsed;
-    return true;
-}
-
-bool parse_options(int argc, char* argv[], Options& options) {
-    for (int index = 1; index < argc; ++index) {
-        const std::string_view argument = argv[index];
-        if (argument == "--help") {
-            print_usage(argv[0]);
-            std::exit(EXIT_SUCCESS);
-        }
-        if (index + 1 == argc) return false;
-
-        const std::string_view value = argv[++index];
-        unsigned long long parsed = 0;
-        if (argument == "--clients" && parse_positive_number(value, parsed) && parsed > 0) {
-            options.clients = static_cast<std::size_t>(parsed);
-        } else if (argument == "--requests" && parse_positive_number(value, parsed) && parsed > 0) {
-            options.total_requests = static_cast<std::size_t>(parsed);
-        } else if (argument == "--value-size" && parse_positive_number(value, parsed)) {
-            options.value_size_bytes = static_cast<std::size_t>(parsed);
-        } else if (argument == "--command") {
-            if (value == "SET" || value == "set") {
-                options.command = CommandType::SET;
-            } else if (value == "GET" || value == "get") {
-                options.command = CommandType::GET;
-            } else if (value == "MIXED" || value == "mix" || value == "MIX") {
-                options.command = CommandType::MIXED;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
-int connect_to_server(const sockaddr_in& address) {
-    const int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd < 0) return -1;
-
-    struct timeval tv{};
-    tv.tv_sec = TIMEOUT_SEC;
-    tv.tv_usec = 0;
-    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    if (connect(socket_fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
-        close(socket_fd);
-        return -1;
-    }
-    return socket_fd;
-}
-
-std::vector<char> make_command_frame(const std::string& name, const std::string& key,
-                                     const std::string* value = nullptr) {
+Request request(const std::string& command, const std::string& key,
+                const std::string* value, Expected expected) {
     msgpack::sbuffer payload;
     msgpack::packer<msgpack::sbuffer> writer(payload);
     writer.pack_array(2);
-    writer.pack(name);
-    writer.pack_array(value == nullptr ? 1 : 2);
-
-    auto pack_string = [&](const std::string& text) {
+    writer.pack(command);
+    writer.pack_array(value ? 2 : 1);
+    auto string_arg = [&](const std::string& text) {
         writer.pack_array(2);
         writer.pack_uint8(6);
         writer.pack(text);
     };
-
-    pack_string(key);
-    if (value != nullptr) pack_string(*value);
-
+    string_arg(key);
+    if (value) string_arg(*value);
+    if (payload.size() > max_frame) throw std::runtime_error("Request exceeds server frame limit");
+    Request result{{}, expected, {}};
+    result.frame.resize(4 + payload.size());
     const auto size = static_cast<uint32_t>(payload.size());
-    std::vector<char> frame(4 + payload.size());
-    frame[0] = static_cast<char>(size >> 24);
-    frame[1] = static_cast<char>(size >> 16);
-    frame[2] = static_cast<char>(size >> 8);
-    frame[3] = static_cast<char>(size);
-    std::copy(payload.data(), payload.data() + payload.size(), frame.begin() + 4);
-    return frame;
+    result.frame[0] = static_cast<char>(size >> 24);
+    result.frame[1] = static_cast<char>(size >> 16);
+    result.frame[2] = static_cast<char>(size >> 8);
+    result.frame[3] = static_cast<char>(size);
+    std::copy(payload.data(), payload.data() + payload.size(), result.frame.begin() + 4);
+    return result;
+}
+void validate(const std::vector<char>& response, Expected expected, const std::string& value) {
+    std::size_t offset = 0;
+    const auto handle = msgpack::unpack(response.data(), response.size(), offset);
+    const auto& root = handle.get();
+    if (offset != response.size() || root.type != msgpack::type::ARRAY || root.via.array.size != 2)
+        throw std::runtime_error("Malformed MessagePack reply");
+    const auto tag = root.via.array.ptr[0].as<uint8_t>();
+    const auto& payload = root.via.array.ptr[1];
+    if (expected == Expected::Missing && tag == 1 && payload.type == msgpack::type::NIL) return;
+    if (expected == Expected::Deleted && tag == 3 && payload.as<int64_t>() == 1) return;
+    if (tag == 6 && payload.type == msgpack::type::STR) {
+        const std::string_view text(payload.via.str.ptr, payload.via.str.size);
+        if (expected == Expected::Ok && text == "OK") return;
+        if (expected == Expected::Value && text == value) return;
+        throw std::runtime_error("Unexpected string/error reply: " + std::string(text.substr(0, 160)));
+    }
+    throw std::runtime_error("Unexpected reply type or value");
 }
 
-bool send_command_and_read_response(int socket_fd, const std::vector<char>& command,
-                                    std::vector<char>& response) {
-    std::size_t total_sent = 0;
-    while (total_sent < command.size()) {
-        const ssize_t sent = send(socket_fd, command.data() + total_sent, command.size() - total_sent, 0);
-        if (sent <= 0) return false;
-        total_sent += static_cast<std::size_t>(sent);
+class Connection {
+    int fd_ = -1;
+    int timeout_ms_;
+    static void fail(const char* action) {
+        throw std::runtime_error(std::string(action) + ": " + std::strerror(errno));
     }
-
-    auto receive_exactly = [&](char* data, std::size_t size) {
-        std::size_t total_received = 0;
-        while (total_received < size) {
-            const ssize_t received = recv(socket_fd, data + total_received, size - total_received, 0);
-            if (received <= 0) return false;
-            total_received += static_cast<std::size_t>(received);
-        }
-        return true;
-    };
-
-    unsigned char header[4];
-    if (!receive_exactly(reinterpret_cast<char*>(header), sizeof(header))) return false;
-
-    const uint32_t response_size =
-        (static_cast<uint32_t>(header[0]) << 24) |
-        (static_cast<uint32_t>(header[1]) << 16) |
-        (static_cast<uint32_t>(header[2]) << 8) |
-         static_cast<uint32_t>(header[3]);
-
-    response.resize(response_size);
-    if (!response.empty() && !receive_exactly(response.data(), response.size())) {
-        return false;
-    }
-    return true;
-}
-
-void execute_benchmark(std::size_t client_id, std::size_t num_requests, const Options& options,
-                       const sockaddr_in& address, WorkerResult& result) {
-    const int sock_fd = connect_to_server(address);
-    if (sock_fd < 0) {
-        result.connection_failed = true;
-        result.failed_requests = num_requests;
-        return;
-    }
-
-    result.latencies_us.reserve(num_requests);
-    const std::string dummy_value(options.value_size_bytes, 'X');
-    std::vector<char> response;
-    response.reserve(4096);
-
-    for (std::size_t i = 0; i < num_requests; ++i) {
-        const std::string key = "k_" + std::to_string(client_id) + "_" + std::to_string(i);
-
-        const bool is_set = options.command == CommandType::SET ||
-                            (options.command == CommandType::MIXED && i % 2 == 0);
-        const std::vector<char> cmd = make_command_frame(
-            is_set ? "SET" : "GET", key, is_set ? &dummy_value : nullptr);
-
-        const auto start_time = std::chrono::steady_clock::now();
-        if (send_command_and_read_response(sock_fd, cmd, response)) {
-            const auto latency = std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - start_time).count();
-            result.latencies_us.push_back(static_cast<uint32_t>(latency));
-        } else {
-            result.failed_requests += (num_requests - i);
-            break;
+    short wait(short events, load::Clock::time_point progress) const {
+        for (;;) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                load::Clock::now() - progress).count();
+            if (elapsed >= timeout_ms_) throw std::runtime_error("Socket inactivity timeout");
+            pollfd descriptor{fd_, events, 0};
+            const int ready = poll(&descriptor, 1, timeout_ms_ - static_cast<int>(elapsed));
+            if (ready < 0 && errno == EINTR) continue;
+            if (ready < 0) fail("poll");
+            if (ready == 0) throw std::runtime_error("Socket inactivity timeout");
+            if (descriptor.revents & POLLNVAL) throw std::runtime_error("Invalid socket");
+            return descriptor.revents;
         }
     }
-
-    close(sock_fd);
-}
-
-std::string format_number(std::size_t value) {
-    std::string s = std::to_string(value);
-    int insert_pos = static_cast<int>(s.length()) - 3;
-    while (insert_pos > 0) {
-        s.insert(insert_pos, "'");
-        insert_pos -= 3;
+public:
+    explicit Connection(const load::Options& options) : timeout_ms_(static_cast<int>(options.timeout_ms)) {
+        fd_ = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        if (fd_ < 0) fail("socket");
+        try {
+            const int enabled = 1;
+            if (setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &enabled, sizeof(enabled)) < 0) fail("TCP_NODELAY");
+            sockaddr_in address{};
+            address.sin_family = AF_INET;
+            address.sin_port = htons(static_cast<uint16_t>(options.port));
+            if (inet_pton(AF_INET, options.host.c_str(), &address.sin_addr) != 1)
+                throw std::runtime_error("--host must be an IPv4 address");
+            if (connect(fd_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
+                if (errno != EINPROGRESS) fail("connect");
+                wait(POLLOUT, load::Clock::now());
+                int error = 0;
+                socklen_t size = sizeof(error);
+                if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &size) < 0) fail("getsockopt");
+                if (error) { errno = error; fail("connect"); }
+            }
+        } catch (...) { close(fd_); fd_ = -1; throw; }
     }
-    return s;
-}
+    ~Connection() { if (fd_ >= 0) close(fd_); }
+    Connection(const Connection&) = delete;
+    Connection& operator=(const Connection&) = delete;
 
-double get_percentile_ms(const std::vector<uint32_t>& sorted_latencies, double percentile) {
-    if (sorted_latencies.empty()) return 0.0;
-    const std::size_t idx = static_cast<std::size_t>(percentile * sorted_latencies.size() / 100.0);
-    const std::size_t clamped_idx = std::min(idx, sorted_latencies.size() - 1);
-    return sorted_latencies[clamped_idx] / 1000.0;
-}
-
+    // Read and write concurrently so a large pipeline cannot deadlock on full
+    // socket buffers. Each request is timed from its first successful send to
+    // receipt of its entire reply. Validation is outside that latency interval.
+    void exchange(std::vector<Request>& batch, const std::string& value, load::Result* result = nullptr) {
+        std::size_t sending = 0, sent = 0, receiving = 0, header_used = 0, payload_used = 0;
+        std::array<unsigned char, 4> header{};
+        std::vector<char> payload;
+        auto progress = load::Clock::now();
+        while (receiving < batch.size()) {
+            const short events = wait(static_cast<short>(POLLIN | (sending < batch.size() ? POLLOUT : 0)), progress);
+            if ((events & POLLOUT) && sending < batch.size()) {
+                auto& current = batch[sending];
+                const auto began = load::Clock::now();
+                const auto count = send(fd_, current.frame.data() + sent, current.frame.size() - sent, MSG_NOSIGNAL);
+                if (count > 0) {
+                    if (sent == 0) current.started = began;
+                    sent += static_cast<std::size_t>(count);
+                    progress = load::Clock::now();
+                    if (sent == current.frame.size()) { ++sending; sent = 0; }
+                } else if (count < 0 && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) fail("send");
+                else if (count == 0) throw std::runtime_error("Socket closed while sending");
+            }
+            if (events & (POLLIN | POLLHUP | POLLERR)) {
+                const bool reading_header = header_used < header.size();
+                char* destination = reading_header ? reinterpret_cast<char*>(header.data()) + header_used :
+                    payload.data() + payload_used;
+                const auto remaining = reading_header ? header.size() - header_used : payload.size() - payload_used;
+                const auto count = recv(fd_, destination, remaining, 0);
+                if (count == 0) throw std::runtime_error("Server closed the connection");
+                if (count < 0) {
+                    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+                        if (events & (POLLHUP | POLLERR)) throw std::runtime_error("Socket hangup/error");
+                        continue;
+                    }
+                    fail("recv");
+                }
+                progress = load::Clock::now();
+                if (reading_header) {
+                    header_used += static_cast<std::size_t>(count);
+                    if (header_used == header.size()) {
+                        const uint32_t size = (static_cast<uint32_t>(header[0]) << 24) |
+                            (static_cast<uint32_t>(header[1]) << 16) |
+                            (static_cast<uint32_t>(header[2]) << 8) | header[3];
+                        if (size == 0 || size > max_frame) throw std::runtime_error("Invalid reply frame length");
+                        payload.resize(size);
+                    }
+                } else {
+                    payload_used += static_cast<std::size_t>(count);
+                    if (payload_used == payload.size()) {
+                        const auto ended = load::Clock::now();
+                        const auto& current = batch[receiving];
+                        if (current.started == load::Clock::time_point{}) throw std::runtime_error("Unsolicited reply");
+                        validate(payload, current.expected, value);
+                        if (result) {
+                            result->latency_ns.push_back(static_cast<uint64_t>(
+                                std::chrono::duration_cast<std::chrono::nanoseconds>(ended - current.started).count()));
+                            if (current.expected == Expected::Ok) ++result->writes; else ++result->reads;
+                        }
+                        ++receiving;
+                        header_used = 0;
+                        payload_used = 0;
+                    }
+                }
+            }
+        }
+    }
+};
 } // namespace
 
-int main(int argc, char* argv[]) {
-    Options options;
-    if (!parse_options(argc, argv, options)) {
-        print_usage(argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    sockaddr_in address{};
-    address.sin_family = AF_INET;
-    address.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, HOST, &address.sin_addr) != 1) {
-        std::cerr << "Invalid IPv4 address: " << HOST << '\n';
-        return EXIT_FAILURE;
-    }
-
-    std::vector<WorkerResult> worker_results(options.clients);
-    std::vector<std::thread> workers;
-    workers.reserve(options.clients);
-
-    const std::size_t base_requests = options.total_requests / options.clients;
-    const std::size_t remainder = options.total_requests % options.clients;
-
-    const auto start_time = std::chrono::steady_clock::now();
-
-    for (std::size_t i = 0; i < options.clients; ++i) {
-        const std::size_t reqs = base_requests + (i < remainder ? 1 : 0);
-        workers.emplace_back(execute_benchmark, i, reqs, std::cref(options),
-                             std::cref(address), std::ref(worker_results[i]));
-    }
-
-    for (auto& worker : workers) {
-        worker.join();
-    }
-
-    const auto end_time = std::chrono::steady_clock::now();
-    const auto duration_sec = std::chrono::duration<double>(end_time - start_time).count();
-
-    std::vector<uint32_t> all_latencies;
-    all_latencies.reserve(options.total_requests);
-
-    std::size_t failed_requests = 0;
-    std::size_t successful_connections = 0;
-
-    for (const auto& res : worker_results) {
-        if (!res.connection_failed) {
-            successful_connections++;
+int main(int argc, char** argv) {
+    try {
+        const auto options = load::parse(argc, argv, true);
+        const load::Workload workload(options);
+        load::describe(options, workload, true);
+        if (workload.preload()) {
+            Connection setup(options);
+            for (std::size_t offset = 0; offset < workload.keys.size();) {
+                const auto count = std::min(options.pipeline, workload.keys.size() - offset);
+                std::vector<Request> batch;
+                batch.reserve(count);
+                for (std::size_t i = 0; i < count; ++i)
+                    batch.push_back(request("SET", workload.keys[offset + i], &workload.value, Expected::Ok));
+                setup.exchange(batch, workload.value);
+                offset += count;
+            }
         }
-        failed_requests += res.failed_requests;
-        all_latencies.insert(all_latencies.end(), res.latencies_us.begin(), res.latencies_us.end());
+        std::vector<std::unique_ptr<Connection>> connections(options.clients);
+        auto execute = [&](std::size_t id, std::size_t offset, std::size_t count,
+                           load::Result* result, const std::string* warm_key) {
+            std::string scratch;
+            for (std::size_t done = 0; done < count;) {
+                const auto length = std::min(options.pipeline, count - done);
+                std::vector<Request> batch;
+                batch.reserve(length);
+                for (std::size_t i = 0; i < length; ++i) {
+                    const auto index = offset + done + i;
+                    const bool write = workload.write(index);
+                    const auto& key = warm_key ? *warm_key : workload.key(index, scratch);
+                    batch.push_back(request(write ? "SET" : "GET", key, write ? &workload.value : nullptr,
+                        write ? Expected::Ok : options.mode == load::Mode::Miss ? Expected::Missing : Expected::Value));
+                }
+                connections[id]->exchange(batch, workload.value, result);
+                done += length;
+            }
+        };
+        auto prepare = [&](std::size_t id, std::size_t offset) {
+            connections[id] = std::make_unique<Connection>(options);
+            const auto warm_key = workload.prefix + "warm:" + std::to_string(id);
+            const bool inserting = options.mode == load::Mode::Set;
+            execute(id, offset, options.warmup, nullptr, inserting ? &warm_key : nullptr);
+            if (inserting && options.warmup != 0) {
+                std::vector<Request> cleanup;
+                cleanup.push_back(request("DEL", warm_key, nullptr, Expected::Deleted));
+                connections[id]->exchange(cleanup, workload.value);
+            }
+        };
+        return load::run(options, prepare, [&](std::size_t id, std::size_t offset,
+                                               std::size_t count, load::Result& result) {
+            execute(id, offset, count, &result, nullptr);
+        });
+    } catch (const std::exception& error) {
+        std::cerr << "Benchmark failed: " << error.what() << '\n';
+        return EXIT_FAILURE;
     }
-
-    std::sort(all_latencies.begin(), all_latencies.end());
-
-    const std::size_t total_successful_requests = all_latencies.size();
-    const std::size_t rps = duration_sec > 0 ? static_cast<std::size_t>(total_successful_requests / duration_sec) : 0;
-
-    const double p50 = get_percentile_ms(all_latencies, 50.0);
-    const double p95 = get_percentile_ms(all_latencies, 95.0);
-    const double p99 = get_percentile_ms(all_latencies, 99.0);
-    const double p999 = get_percentile_ms(all_latencies, 99.9);
-
-    std::cout << "Requests: " << format_number(options.total_requests)
-              << " Connections: " << format_number(successful_connections)
-              << " Throughput: " << format_number(rps) << " req/s"
-              << std::fixed << std::setprecision(2)
-              << " Latency: p50: " << p50 << " ms"
-              << " p95: " << p95 << " ms"
-              << " p99: " << p99 << " ms"
-              << " p999: " << p999 << " ms\n";
-
-    return (failed_requests == 0 && successful_connections == options.clients) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

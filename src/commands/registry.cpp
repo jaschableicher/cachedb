@@ -66,7 +66,8 @@ ExecuteReturn Registry::execute( CommandContext& context,const Command& command)
         };
     }
 
-    auto args = command.args;
+    auto& args = const_cast<Command&>(command).args;
+
     for (std::size_t i = 0; i < args.size(); ++i) {
         if (!coerce_value(args[i], descriptor->arguments[i].type))
         {
@@ -80,7 +81,7 @@ ExecuteReturn Registry::execute( CommandContext& context,const Command& command)
     }
     if(descriptor->changes_data){
         //Log the full command to aol file as binary!
-        Logger::get_instance()->log_command(command);//FIXME: Copies command currently as this func is const!
+        Logger::get_instance()->log_command(command);
     }
     Value value = descriptor->handler(
             context,
