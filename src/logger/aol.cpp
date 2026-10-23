@@ -15,9 +15,9 @@ Logger::Logger(){
     }
     //reserver large enough strings to not need the programm to move around in memory
     //Not too large so they dont overtake the memory!
-    //1MB of space each
-    active_buffer_.reserve(1024 * 1024); 
-    background_buffer_.reserve(1024 * 1024);
+    //2MB of space each
+    active_buffer_.reserve(1024 * 1024*2); 
+    background_buffer_.reserve(1024 * 1024*2);
     log_thread_ = std::thread(&Logger::log_buffer_thread, this);
 }
 Logger::~Logger(){
@@ -138,8 +138,14 @@ void Logger::log_buffer(){
 void Logger::log_buffer_thread(){
     //Copy data from buffer a to buffer b via pointers
     //as buffer b was empty, a is now empty as a is now b so data can be rewritten again
+    uint64_t lastFlush=0;
     while(running_.load()){
-        log_buffer();
+        uint64_t current = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        if(current-lastFlush>5 || active_buffer_.size()>=1024*1024){
+            lastFlush=current;
+            log_buffer();                
+        }
+        
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 }
