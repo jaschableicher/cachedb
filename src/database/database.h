@@ -13,9 +13,10 @@
 #include <variant>
 #include <vector>
 #include <list>
+#include <unordered_map>
 #include "hashtable.h"
 #include "../commands/value.h"
-
+#include "expiration.h"
 enum SnapshotReturn{
     ErrorCorruptedFile,
     ErrorInvalidFormat,
@@ -51,26 +52,16 @@ private:
         std::optional<std::int64_t> expiry;
         uint8_t version=0;
     };
-    struct ExpirationEntry {
-        std::string key;
-        int64_t expiry;
-        uint8_t version;
-
-        bool operator>(const ExpirationEntry& other) const {
-            return expiry > other.expiry;
-        }
-    };
     mutable std::mutex cache_mutex_;
     mutable HashTable<Val> cache_;
 
-
+    ExpirationHeap expiration_heap_;
+    std::unordered_map<std::string, ExpirationEntry> expiration_entries_;
     std::atomic_bool running_;
     std::thread expiration_thread;
     std::mutex expiration_mutex_;
     std::condition_variable expiration_condition_;
-    std::priority_queue<ExpirationEntry,
-                        std::vector<ExpirationEntry>,
-                        std::greater<ExpirationEntry>> expiration_heap_;
+    
 
     bool delete_if_expired(const Val* cache_value, const std::string& key);
     void active_expiration_check();
