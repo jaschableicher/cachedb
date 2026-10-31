@@ -1,10 +1,16 @@
 #pragma once
-#include "database.h"
+#include <string>
+#include <cstdint>
 #include <vector>
 #include <limits>
 #include <utility>
 #include <cstddef>
-#include <chrono>
+struct ExpirationEntry {
+    std::string key;
+    int64_t expiry;
+    size_t heapIndex = SIZE_MAX;
+};
+
 class ExpirationHeap{
 private:
     std::vector<ExpirationEntry*> heap_;
@@ -57,7 +63,7 @@ public:
         heap_.push_back(&entry);
         siftUp(entry.heapIndex);
     }
-    void update(ExpirationEntry& entry, uint64_t newTime) {
+    void update(ExpirationEntry& entry, int64_t newTime) {
         entry.expiry = newTime;
 
         if (entry.heapIndex == std::numeric_limits<size_t>::max())
@@ -66,7 +72,13 @@ public:
             repair(entry.heapIndex);
     }
     void remove(ExpirationEntry& entry){
-
+        if (entry.heapIndex == std::numeric_limits<size_t>::max()) return;
+        const size_t index = entry.heapIndex;
+        const size_t last = heap_.size() - 1;
+        if (index != last) swapNodes(index, last);
+        heap_.pop_back();
+        entry.heapIndex = std::numeric_limits<size_t>::max();
+        if (index < heap_.size()) repair(index);
     }
     ExpirationEntry* top() const{
         return heap_.empty()?nullptr:heap_.front();
