@@ -14,7 +14,7 @@ void Database::active_expiration_check(){
                 });
             } else {
                 const auto next_expiry = std::chrono::system_clock::time_point(
-                    std::chrono::seconds(expiration_heap_.top().expiry)
+                    std::chrono::seconds(expiration_heap_.top()->expiry)
                 );
                 expiration_condition_.wait_until(lock, next_expiry);
             }
@@ -25,26 +25,19 @@ void Database::active_expiration_check(){
         int max_checks = 0;
         const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         std::scoped_lock lock(expiration_mutex_);
-        Val cached_val;
-        auto getter = [&](Val entry_data){
-            cached_val=entry_data;
-        };
-        while(!expiration_heap_.empty() && expiration_heap_.top().expiry <= now && max_checks < 100){
+        while(!expiration_heap_.empty() && expiration_heap_.top()->expiry <= now && max_checks < 100){
             max_checks++;
-            ExpirationEntry item = expiration_heap_.top();
+            auto* item = expiration_heap_.top();
+            const std::string key = item->key;
             expiration_heap_.pop();
-            
-            //check version with hashmap
-            bool cache_exists = cache_.with_read(item.key,getter);
-            if(cache_exists&& cached_val.version==item.version){
-   
-                cache_.erase(item.key);
-                Command cmd={
-                    "DEL",
-                    {item.key}
-                };
-                Logger::get_instance()->log_command(cmd);
-            }
+
+            cache_.erase(key);
+            Command cmd={
+                "DEL",
+                {key}
+            };
+            Logger::get_instance()->log_command(cmd);
+            expiration_entries_.erase(key);
         }
         
     }
@@ -64,13 +57,10 @@ std::optional<std::int64_t> Database::set_expiry(const std::string& key,int64_t 
         const std::int64_t expiry = epoch_now.count() + expires_in_seconds;
         Val updated = cache_val;
         updated.expiry = expiry;
-        updated.version +=1;
         cache_.insert(key, updated);
-        expiration_heap_.emplace(ExpirationEntry{
-            key,
-            expiry,
-            updated.version
-        });
+        auto [it, inserted] = expiration_entries_.try_emplace(key, ExpirationEntry{key, expiry});
+        if (inserted) expiration_heap_.insert(it->second);
+        else expiration_heap_.update(it->second, expiry);
     }
 
     expiration_condition_.notify_one();
@@ -78,6 +68,7 @@ std::optional<std::int64_t> Database::set_expiry(const std::string& key,int64_t 
 }
 
 int64_t Database::get_expiry(const std::string& key){
+    std::scoped_lock lock(expiration_mutex_);
     Val cache_val;
     auto getter = [&](Val entry_data){
         cache_val=entry_data;
@@ -95,6 +86,10 @@ bool Database::delete_if_expired(const Val* cache_val, const std::string& key){
         if(cache_val->expiry.value() <= std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()){
             //delete value 
             cache_.erase(key);
+            if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
+                expiration_heap_.remove(it->second);
+                expiration_entries_.erase(it);
+            }
             Command cmd={
                 "DEL",
                 {key}

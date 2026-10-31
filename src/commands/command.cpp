@@ -14,8 +14,6 @@ void register_commands() {
         .changes_data= true,
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value {
             const auto& key = std::get<std::string>(args[0]);
-            
-
             ctx.db.set(key, args[1]);
             return std::string("OK");
         }
