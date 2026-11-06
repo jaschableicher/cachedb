@@ -60,6 +60,53 @@ TEST(DatabaseTest, ExpiredKeyIsNotReturned) {
     EXPECT_EQ(db.set_expiry("key", 0), 0);
     EXPECT_FALSE(db.get("key").has_value());
 }
+
+TEST(DatabaseTest, OverwriteAndEraseRemoveExpiration) {
+    Database db;
+    db.set("overwritten", "old");
+    ASSERT_EQ(db.set_expiry("overwritten", 3600), 3600);
+    db.set("overwritten", "new");
+    EXPECT_EQ(db.get_expiry("overwritten"), -1);
+    const auto overwritten = db.get("overwritten");
+    ASSERT_TRUE(overwritten.has_value());
+    EXPECT_EQ(std::get<std::string>(*overwritten), "new");
+
+    db.set("deleted", "value");
+    ASSERT_EQ(db.set_expiry("deleted", 3600), 3600);
+    EXPECT_TRUE(db.erase("deleted"));
+    EXPECT_FALSE(db.get("deleted").has_value());
+    db.set("deleted", "replacement");
+    EXPECT_EQ(db.get_expiry("deleted"), -1);
+}
+
+TEST(DatabaseTest, RepeatedExpiryUpdateUsesLatestDeadline) {
+    Database db;
+    db.set("key", "value");
+    ASSERT_EQ(db.set_expiry("key", 3600), 3600);
+    ASSERT_EQ(db.set_expiry("key", 0), 0);
+    EXPECT_FALSE(db.get("key").has_value());
+}
+
+TEST(DatabaseTest, UpdatingExpirationReordersHeap) {
+    ExpirationHeap heap;
+    ExpirationEntry first{"first", 10};
+    ExpirationEntry second{"second", 20};
+    ExpirationEntry third{"third", 30};
+    heap.insert(first);
+    heap.insert(second);
+    heap.insert(third);
+
+    heap.update(third, 5);
+    EXPECT_EQ(heap.top(), &third);
+    heap.update(third, 40);
+    EXPECT_EQ(heap.top(), &first);
+    heap.remove(first);
+    EXPECT_EQ(heap.top(), &second);
+    heap.pop();
+    EXPECT_EQ(heap.top(), &third);
+    heap.pop();
+    EXPECT_TRUE(heap.empty());
+}
 /*
 TEST(DatabaseTest, HandlesBinaryData) {
     Database db;
