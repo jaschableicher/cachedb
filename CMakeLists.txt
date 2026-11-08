@@ -81,9 +81,9 @@ if(BUILD_BENCHMARKS)
 
     add_executable(server_connection_load benchmarks/server_connection_load.cpp)
     target_link_libraries(server_connection_load PRIVATE Threads::Threads)
-    add_executable(memory_load benchmarks/memory_load.cpp)
-    target_link_libraries(memory_load PRIVATE Threads::Threads msgpack-cxx)
-    enable_warnings(memory_load)
+    add_executable(server_load benchmarks/server_load.cpp)
+    target_link_libraries(server_load PRIVATE Threads::Threads msgpack-cxx)
+    enable_warnings(server_load)
 
     add_executable(database_load benchmarks/database_load.cpp)
     target_link_libraries(database_load PRIVATE cache_db_core Threads::Threads)
