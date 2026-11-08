@@ -2,12 +2,13 @@ name: Benchmarks
 
 on:
   pull_request:
-  release:
-    types: [published]
-  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: benchmarks-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   benchmark:
@@ -37,12 +38,13 @@ jobs:
           path: benchmark-results/
           if-no-files-found: warn
 
-  release_report:
-    if: github.event_name == 'release'
+  pr_comment:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     needs: benchmark
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      actions: read
+      pull-requests: write
     steps:
       - name: Download benchmark report
         uses: actions/download-artifact@v4
@@ -50,8 +52,26 @@ jobs:
           name: benchmark-results
           path: benchmark-results
 
-      - name: Attach report to release
+      - name: Post or update PR benchmark table
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" benchmark-results/report.md benchmark-results/results.json --clobber
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            printf '<!-- cachedb-benchmark-results -->\n\n'
+            cat benchmark-results/report.md
+            printf '\n[Full benchmark run](%s/%s/actions/runs/%s)\n' \
+              "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          } > benchmark-results/comment.md
+
+          comment_id=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and ((.body // "") | startswith("<!-- cachedb-benchmark-results -->"))) | .id' \
+            | tail -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api --silent --method PATCH "repos/$GH_REPO/issues/comments/$comment_id" \
+              -F 'body=@benchmark-results/comment.md'
+          else
+            gh api --silent --method POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+              -F 'body=@benchmark-results/comment.md'
+          fi
