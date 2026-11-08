@@ -145,7 +145,7 @@ class LoadTests(unittest.TestCase):
     def test_tcp_workloads_and_shared_keys(self):
         for mode in ("GET", "GET_MISS", "SET", "OVERWRITE", "MIX"):
             with self.subTest(mode=mode), server() as fixture:
-                out = run("memory_load", "--port", fixture.server_address[1], "--command", mode,
+                out = run("server_load", "--port", fixture.server_address[1], "--command", mode,
                           "--clients", 3, "--requests", 103, "--keys", 7, "--pipeline", 8,
                           "--warmup", 9, "--value-size", 0)
                 self.assertIn("Successful: 103 Failed/uncompleted: 0", out)
@@ -164,41 +164,41 @@ class LoadTests(unittest.TestCase):
 
     def test_mix_extremes(self):
         for percent, expected in ((0, "Reads: 0 Writes: 100"), (100, "Reads: 100 Writes: 0")):
-            for binary in ("database_load", "memory_load"):
+            for binary in ("database_load", "server_load"):
                 with self.subTest(percent=percent, binary=binary), server() as fixture:
-                    args = ["--port", fixture.server_address[1]] if binary == "memory_load" else []
+                    args = ["--port", fixture.server_address[1]] if binary == "server_load" else []
                     out = run(binary, *args, "--command", "MIX", "--read-percent", percent,
                               "--clients", 2, "--requests", 100, "--keys", 1, "--warmup", 0)
                     self.assertIn(expected, out)
 
     def test_fragmented_replies(self):
         with server("fragmented") as fixture:
-            out = run("memory_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
                       "--clients", 1, "--requests", 17, "--pipeline", 8, "--warmup", 0)
             self.assertIn("Successful: 17", out)
 
     def test_tcp_failures_are_not_successes(self):
         for behavior in ("error", "wrong_type", "trailing", "oversize", "zero", "close", "timeout"):
             with self.subTest(behavior=behavior), server(behavior) as fixture:
-                out = run("memory_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+                out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
                           "--clients", 1, "--requests", 3, "--pipeline", 2, "--warmup", 0,
                           "--timeout-ms", 100, ok=False)
                 self.assertIn("Successful: 0 Failed/uncompleted: 3", out)
 
     def test_wrong_get_value(self):
         with server("wrong_value") as fixture:
-            out = run("memory_load", "--port", fixture.server_address[1], "--command", "GET",
+            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET",
                       "--clients", 1, "--requests", 3, "--keys", 1, "--warmup", 0, ok=False)
             self.assertIn("Successful: 0 Failed/uncompleted: 3", out)
 
     def test_warmup_failure_releases_all_workers(self):
         with server("error") as fixture:
-            out = run("memory_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
                       "--clients", 4, "--requests", 8, "--warmup", 1, ok=False)
             self.assertIn("Successful: 0 Failed/uncompleted: 8", out)
 
     def test_invalid_arguments(self):
-        for binary in ("database_load", "memory_load"):
+        for binary in ("database_load", "server_load"):
             for args in (("--clients", "-1"), ("--requests", "0"), ("--keys", "0"),
                          ("--clients", "4", "--requests", "3"), ("--read-percent", "101"),
                          ("--requests", "18446744073709551616"), ("--value-size",), ("--command", "bogus")):
