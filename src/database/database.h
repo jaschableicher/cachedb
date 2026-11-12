@@ -25,11 +25,16 @@ enum SnapshotReturn{
     ErrorReadingBucketCount,
     Success
 };
+
+enum class SetResult {
+    Success,
+    MemoryLimitExceeded
+};
 class Database {
 public:
     Database();
     ~Database();
-    void set(std::string key, const Value& value);
+    SetResult set(std::string key, const Value& value);
 
     std::optional<Value> get(
         const std::string& key
@@ -62,6 +67,7 @@ private:
     std::mutex expiration_mutex_;
     std::condition_variable expiration_condition_;
     
+    std::atomic<size_t> accounted_memory=0;
 
     bool delete_if_expired(const Val* cache_value, const std::string& key);
     void active_expiration_check();
