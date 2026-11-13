@@ -14,8 +14,8 @@ void register_commands() {
         .changes_data= true,
         .handler = [](CommandContext& ctx, std::span<const Value> args) -> Value {
             const auto& key = std::get<std::string>(args[0]);
-            ctx.db.set(key, args[1]);
-            return std::string("OK");
+            auto result = ctx.db.set(key, args[1]);
+            return result == SetResult::MemoryLimitExceeded ? std::string("Error: Memory Limit Exceeded") : std::string("OK");
         }
     });
 
@@ -54,6 +54,7 @@ void register_commands() {
             { ValueType::String, false },
             { ValueType::Int64, false }
         },
+        .changes_data=true,
         .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
             const auto& key = std::get<std::string>(args[0]);
             const auto& expires_in_seconds = std::get<int64_t>(args[1]);
