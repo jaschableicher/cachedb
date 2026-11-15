@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <cerrno>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -172,4 +173,3 @@ TEST_F(ServerIntegrationTest, MultipleCommandsOnSameConnection) {
     ASSERT_TRUE(std::holds_alternative<std::string>(second_get));
     EXPECT_EQ(std::get<std::string>(second_get), value);
 }
-

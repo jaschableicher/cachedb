@@ -1,0 +1,77 @@
+name: Benchmarks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Release benchmarks
+        run: cmake --preset linux-prod
+
+      - name: Build
+        run: cmake --build --preset linux-prod --parallel
+
+      - name: Check benchmark workloads
+        run: python3 tests/benchmarks/load_tests.py build/linux-prod
+
+      - name: Run benchmarks and write job summary
+        run: python3 benchmarks/run_ci.py --build-dir build/linux-prod --output-dir benchmark-results
+
+      - name: Save benchmark report and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results/
+          if-no-files-found: warn
+
+  pr_comment:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: benchmark
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Download benchmark report
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results
+
+      - name: Post or update PR benchmark table
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            printf '<!-- cachedb-benchmark-results -->\n\n'
+            cat benchmark-results/report.md
+            printf '\n[Full benchmark run](%s/%s/actions/runs/%s)\n' \
+              "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          } > benchmark-results/comment.md
+
+          comment_id=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and ((.body // "") | startswith("<!-- cachedb-benchmark-results -->"))) | .id' \
+            | tail -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api --silent --method PATCH "repos/$GH_REPO/issues/comments/$comment_id" \
+              -F 'body=@benchmark-results/comment.md'
+          else
+            gh api --silent --method POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+              -F 'body=@benchmark-results/comment.md'
+          fi

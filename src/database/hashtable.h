@@ -2,10 +2,13 @@
 #define HASHTABLE_H
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <string>
+#include <utility>
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
@@ -64,7 +67,7 @@ public:
     auto begin() const noexcept { return buckets_.begin(); }
     auto end() const noexcept   { return buckets_.end(); }
 
-    void insert(const std::string& key, const V& value) {
+    void insert(const std::string& key, V value) {
         std::shared_lock<std::shared_mutex> global_lock(resize_mutex_);
         size_t idx = index(key, bucket_count());
         auto& bucket = buckets_[idx];
@@ -72,7 +75,7 @@ public:
             std::unique_lock<std::shared_mutex> lock(bucket.mtx);
             for (auto& entry : bucket.list) {
                 if (entry.key == key) {
-                    entry.data = value;
+                    entry.data = std::move(value);
                     return;
                 }
             }
@@ -86,15 +89,18 @@ public:
             rehash(buckets_.size() * 8);
         }
     }
-
-    const V* find(const std::string& key) const {
-        const auto& bucket = buckets_[index(key,bucket_count())];
-        std::shared_lock<std::shared_mutex> lock(bucket.mtx);
-
+    template <typename F>
+    bool with_read(const std::string& key, F&& callback) const {
+        std::shared_lock table_lock(resize_mutex_);
+        const auto& bucket = buckets_[index(key, buckets_.size())];
+        std::shared_lock bucket_lock(bucket.mtx);
         for (const auto& entry : bucket.list) {
-            if (entry.key == key) return &entry.data;
+            if (entry.key == key) {
+                std::forward<F>(callback)(entry.data);
+                return true;
+            }
         }
-        return nullptr;
+        return false;
     }
 
     bool erase(const std::string& key) {

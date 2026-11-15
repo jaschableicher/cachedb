@@ -8,25 +8,44 @@ Database::Database(): running_(true){
 };
 
 Database::~Database(){
-    running_.store(false);
+    {
+        std::scoped_lock lock(expiration_mutex_);
+        running_.store(false);
+    }
     expiration_condition_.notify_one();
     expiration_thread.join();
 }
 
 
 
-void Database::set(std::string key, Value value) {
-    cache_.insert(key, {value}); // If expiry was set before it is now automatically unset!
+void Database::set(std::string key, const Value& value) {
+    std::scoped_lock lock(expiration_mutex_);
+    if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
+        expiration_heap_.remove(it->second);
+        expiration_entries_.erase(it);
+    }
+    cache_.insert(key, Val{value, std::nullopt});
 }
 
 std::optional<Value> Database::get(const std::string& key){
-    const Val* cache_val = cache_.find(key);
-    if(cache_val == nullptr) return std::nullopt;
-    if(delete_if_expired(cache_val, key)) return std::nullopt;
-    return cache_val->data;
+    Val cache_val;
+    auto getter = [&](Val entry_data){
+        cache_val=entry_data;
+    };
+    if (!cache_.with_read(key, getter)) return std::nullopt;
+    if (!cache_val.expiry.has_value()) return cache_val.data;
+
+    std::scoped_lock lock(expiration_mutex_);
+    if (!cache_.with_read(key, getter)) return std::nullopt;
+    if(delete_if_expired(&cache_val, key)) return std::nullopt;
+    return cache_val.data;
 }
 
 bool Database::erase(const std::string& key){
-    //Should here also check for expiry as technically if expired it should return false as nothing was supposed to be there in the first place?
+    std::scoped_lock lock(expiration_mutex_);
+    if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
+        expiration_heap_.remove(it->second);
+        expiration_entries_.erase(it);
+    }
     return cache_.erase(key);
 }
