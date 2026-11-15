@@ -98,58 +98,75 @@ void ClientWorker::handle_new_clients() {
 
 void ClientWorker::handle_client_data(int client_fd){
     char incoming[4096];
-    ClientState& current_client = message_pool_.at(client_fd);
+    ClientState& client_state = message_pool_.at(client_fd);
     auto disconnect = [&]{
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, nullptr);
         message_pool_.erase(client_fd);
         close(client_fd);
     };
-     
-    const ssize_t received = recv(client_fd, incoming, sizeof(incoming), 0);
-
-    if (received == 0) {
-        disconnect();
-        return;
-    }
-
-    if (received < 0) {
-        if (errno == EINTR) {
-            // Interrupted by system signal, try again immediately or return to event loop
-            return; 
-        }
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // Socket buffer is empty. This is normal for non-blocking.
-            // Just return and wait for the next EPOLLIN event.
-            return; 
-        }
-        // Any other error means a real failure (e.g., ECONNRESET)
-        disconnect();
-        return;
-    } else if (received == 0) {
-        // Client closed the connection gracefully
-        disconnect();
-        return;
-    }
-
-    ClientState& client_state = message_pool_[client_fd];
-    client_state.input.append(incoming, static_cast<std::size_t>(received));
-    while (client_state.input.size() >= 4) {
-        const auto* header = reinterpret_cast<const unsigned char*>(client_state.input.data());
-        const uint32_t payload_size =
-            (static_cast<uint32_t>(header[0]) << 24) |
-            (static_cast<uint32_t>(header[1]) << 16) |
-            (static_cast<uint32_t>(header[2]) << 8)  |
-             static_cast<uint32_t>(header[3]);
-
-        if (payload_size > MAX_MESSAGE_SIZE) {
+    auto set_write_blocked = [&](bool blocked){
+        if (client_state.write_blocked == blocked) return true;
+        epoll_event event{};
+        event.events = blocked ? EPOLLOUT : EPOLLIN;
+        event.data.fd = client_fd;
+        if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event) == -1) {
             disconnect();
-            return;
+            return false;
         }
-        const std::size_t frame_size = 4 + payload_size;
+        client_state.write_blocked = blocked;
+        return true;
+    };
+    bool received_input = false;
+    while (true) {
+        while (client_state.sent_offset < client_state.output.size()) {
+            const ssize_t sent = send(client_fd,client_state.output.data() + client_state.sent_offset,client_state.output.size() - client_state.sent_offset, MSG_NOSIGNAL);
+            
+            if (sent < 0 && errno == EINTR) continue;
+            if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                set_write_blocked(true);
+                return;
+            }
+            if (sent <= 0) {
+                disconnect();
+                return;
+            }
+            client_state.sent_offset += static_cast<std::size_t>(sent);
+        }
+        client_state.output.clear();
+        client_state.sent_offset = 0;
+        if (!set_write_blocked(false)) return;
 
-        // The remaining payload will arrive in a later recv().
-        if (client_state.input.size() < frame_size){
-            return;
+        std::size_t frame_size = 0;
+        uint32_t payload_size = 0;
+        if (client_state.input.size() >= 4) {
+            const auto* header = reinterpret_cast<const unsigned char*>(client_state.input.data());
+            payload_size =
+                (static_cast<uint32_t>(header[0]) << 24) |
+                (static_cast<uint32_t>(header[1]) << 16) |
+                (static_cast<uint32_t>(header[2]) << 8)  |
+                 static_cast<uint32_t>(header[3]);
+
+            if (payload_size > MAX_MESSAGE_SIZE) {
+                disconnect();
+                return;
+            }
+            frame_size = 4 + payload_size;
+        }
+
+        if (frame_size == 0 || client_state.input.size() < frame_size) {
+            if (received_input) return;
+            ssize_t received;
+            do {
+                received = recv(client_fd, incoming, sizeof(incoming), 0);
+            } while (received < 0 && errno == EINTR);
+            if (received < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
+            if (received <= 0) {
+                disconnect();
+                return;
+            }
+            client_state.input.append(incoming, static_cast<std::size_t>(received));
+            received_input = true;
+            continue;
         }
         Value reply;
         try{
@@ -163,23 +180,5 @@ void ClientWorker::handle_client_data(int client_fd){
        
         msgpack::v1::sbuffer response_payload = protocol::encode_value(reply);
         client_state.output = protocol::frame_payload(response_payload);
-        client_state.sent_offset = 0;
-        while (client_state.sent_offset < client_state.output.size()) {
-            const ssize_t sent = send(client_fd, client_state.output.data() + client_state.sent_offset,client_state.output.size() - client_state.sent_offset, MSG_NOSIGNAL);
-
-            if (sent < 0 && errno == EINTR)
-                continue;
-            
-            if (sent <0 && (errno==EAGAIN || errno == EWOULDBLOCK)){
-                return;
-            }
-
-            if (sent <= 0) {
-                disconnect();
-                return;
-            }
-
-            client_state.sent_offset += static_cast<std::size_t>(sent);
-        }
     }
 } 

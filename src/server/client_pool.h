@@ -29,6 +29,7 @@ private:
             std::string input;
             std::vector<char> output;
             std::size_t sent_offset = 0;
+            bool write_blocked = false;
     };
         
     void run();
