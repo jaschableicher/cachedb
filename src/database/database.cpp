@@ -20,10 +20,11 @@ Database::~Database(){
 
 void Database::set(std::string key, const Value& value) {
     std::scoped_lock lock(expiration_mutex_);
-    if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
-        expiration_heap_.remove(it->second);
-        expiration_entries_.erase(it);
-    }
+    std::erase_if(expiration_entries_, [&](const auto& entry) {
+        if (entry.first != key) return false;
+        expiration_heap_.remove(entry.second);
+        return true;
+    });
     cache_.insert(key, Val{value, std::nullopt});
 }
 
@@ -43,9 +44,10 @@ std::optional<Value> Database::get(const std::string& key){
 
 bool Database::erase(const std::string& key){
     std::scoped_lock lock(expiration_mutex_);
-    if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
-        expiration_heap_.remove(it->second);
-        expiration_entries_.erase(it);
-    }
+    std::erase_if(expiration_entries_, [&](const auto& entry) {
+        if (entry.first != key) return false;
+        expiration_heap_.remove(entry.second);
+        return true;
+    });
     return cache_.erase(key);
 }
