@@ -31,6 +31,7 @@ SetResult Database::set(std::string key, const Value& value) {
         expiration_entries_.erase(it);
     }
     cache_.insert(key, Val{value, std::nullopt});
+    return SetResult::Success;
 }
 
 std::optional<Value> Database::get(const std::string& key){
@@ -53,7 +54,10 @@ bool Database::erase(const std::string& key){
         expiration_heap_.remove(it->second);
         expiration_entries_.erase(it);
     }
-    auto val = this->get(key);
+    std::optional<Value> val;
+    cache_.with_read(key, [&](const Val& entry) {
+        val = entry.data;
+    });
     accounted_memory-=overhead+sizeof(val.has_value()?val.value():0);
     return cache_.erase(key);
 }

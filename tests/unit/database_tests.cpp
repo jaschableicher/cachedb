@@ -63,19 +63,19 @@ TEST(DatabaseTest, ExpiredKeyIsNotReturned) {
 
 TEST(DatabaseTest, OverwriteAndEraseRemoveExpiration) {
     Database db;
-    db.set("overwritten", "old");
+        ASSERT_EQ(db.set("overwritten", "old"), SetResult::Success);
     ASSERT_EQ(db.set_expiry("overwritten", 3600), 3600);
-    db.set("overwritten", "new");
+        ASSERT_EQ(db.set("overwritten", "new"), SetResult::Success);
     EXPECT_EQ(db.get_expiry("overwritten"), -1);
     const auto overwritten = db.get("overwritten");
     ASSERT_TRUE(overwritten.has_value());
     EXPECT_EQ(std::get<std::string>(*overwritten), "new");
 
-    db.set("deleted", "value");
+    ASSERT_EQ(db.set("deleted", "value"), SetResult::Success);
     ASSERT_EQ(db.set_expiry("deleted", 3600), 3600);
     EXPECT_TRUE(db.erase("deleted"));
     EXPECT_FALSE(db.get("deleted").has_value());
-    db.set("deleted", "replacement");
+    ASSERT_EQ(db.set("deleted", "replacement"), SetResult::Success);
     EXPECT_EQ(db.get_expiry("deleted"), -1);
 }
 
