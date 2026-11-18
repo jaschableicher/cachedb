@@ -10,7 +10,6 @@ constexpr int NUM_WORKERS = 4;
 
 
 UDS::UDS(Database& db): db_(db), is_running_(true){
-    const char* path = "/tmp/cachedb.sock";
     unlink(path); // Remove stale socket file if it exists
 
     //initialize tcp server with a port to listen to
@@ -56,7 +55,7 @@ UDS::~UDS(){
         ::close(socket_);
         socket_ = -1;
     }
-
+    unlink(path);
     std::cout << "Server completely stopped.\n";
 }
 

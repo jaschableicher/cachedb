@@ -34,6 +34,7 @@ private:
     int socket_=-1;
     int epoll_fd = -1;
     struct sockaddr_un server_addr;
+    const char* path = "/tmp/cachedb.sock";
 
     std::vector<std::unique_ptr<ClientWorker>> workers;
     size_t next_worker = 0;
