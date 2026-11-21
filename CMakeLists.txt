@@ -116,7 +116,8 @@ if(BUILD_TESTING)
     set_tests_properties(unit_tests PROPERTIES TIMEOUT 60)
 
     file(GLOB INTEGRATION_TEST_SOURCES CONFIGURE_DEPENDS tests/integration/*.cpp)
-    add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})
+    add_executable(integration_tests ${INTEGRATION_TEST_SOURCES}
+        tests/integration/uds_tests.cpp)
     target_link_libraries(integration_tests PRIVATE cache_db_core GTest::gtest_main)
     enable_warnings(integration_tests)
     add_test(NAME integration_tests COMMAND integration_tests)
