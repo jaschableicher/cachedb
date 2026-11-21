@@ -1,6 +1,3 @@
-//TODO: Server integration tests to check wether the server is running correctly and responds correctly
-// Basically what the api/sdk must do later
-
 #include <gtest/gtest.h>
 #include <string>
 #include <cstring>
