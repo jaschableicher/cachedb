@@ -1,7 +1,7 @@
 """Benchmark regression checks, using only Python's standard library.
 
 Usage: python3 tests/benchmarks/load_tests.py build/linux-prod
-The TCP tests use an isolated fake server on an ephemeral port.
+The UDS tests use an isolated fake server on a temporary socket path.
 """
 import contextlib
 import pathlib
@@ -9,6 +9,7 @@ import socketserver
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -104,10 +105,11 @@ def server(behavior="normal"):
             except (EOFError, OSError):
                 pass
 
-    class Server(socketserver.ThreadingTCPServer):
+    class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads = True
 
-    with Server(("127.0.0.1", 0), Handler) as instance:
+    with tempfile.TemporaryDirectory(prefix="cachedb-load-") as directory, \
+            Server(str(pathlib.Path(directory) / "server.sock"), Handler) as instance:
         instance.values = {}
         instance.commands = []
         instance.lock = threading.Lock()
@@ -142,10 +144,10 @@ class LoadTests(unittest.TestCase):
                   "--requests", 33000, "--warmup", 0, "--value-size", 0)
         self.assertIn("Successful: 33000", out)
 
-    def test_tcp_workloads_and_shared_keys(self):
+    def test_uds_workloads_and_shared_keys(self):
         for mode in ("GET", "GET_MISS", "SET", "OVERWRITE", "MIX"):
             with self.subTest(mode=mode), server() as fixture:
-                out = run("server_load", "--port", fixture.server_address[1], "--command", mode,
+                out = run("server_load", "--socket", fixture.server_address, "--command", mode,
                           "--clients", 3, "--requests", 103, "--keys", 7, "--pipeline", 8,
                           "--warmup", 9, "--value-size", 0)
                 self.assertIn("Successful: 103 Failed/uncompleted: 0", out)
@@ -166,34 +168,34 @@ class LoadTests(unittest.TestCase):
         for percent, expected in ((0, "Reads: 0 Writes: 100"), (100, "Reads: 100 Writes: 0")):
             for binary in ("database_load", "server_load"):
                 with self.subTest(percent=percent, binary=binary), server() as fixture:
-                    args = ["--port", fixture.server_address[1]] if binary == "server_load" else []
+                    args = ["--socket", fixture.server_address] if binary == "server_load" else []
                     out = run(binary, *args, "--command", "MIX", "--read-percent", percent,
                               "--clients", 2, "--requests", 100, "--keys", 1, "--warmup", 0)
                     self.assertIn(expected, out)
 
     def test_fragmented_replies(self):
         with server("fragmented") as fixture:
-            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+            out = run("server_load", "--socket", fixture.server_address, "--command", "GET_MISS",
                       "--clients", 1, "--requests", 17, "--pipeline", 8, "--warmup", 0)
             self.assertIn("Successful: 17", out)
 
-    def test_tcp_failures_are_not_successes(self):
+    def test_uds_failures_are_not_successes(self):
         for behavior in ("error", "wrong_type", "trailing", "oversize", "zero", "close", "timeout"):
             with self.subTest(behavior=behavior), server(behavior) as fixture:
-                out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+                out = run("server_load", "--socket", fixture.server_address, "--command", "GET_MISS",
                           "--clients", 1, "--requests", 3, "--pipeline", 2, "--warmup", 0,
                           "--timeout-ms", 100, ok=False)
                 self.assertIn("Successful: 0 Failed/uncompleted: 3", out)
 
     def test_wrong_get_value(self):
         with server("wrong_value") as fixture:
-            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET",
+            out = run("server_load", "--socket", fixture.server_address, "--command", "GET",
                       "--clients", 1, "--requests", 3, "--keys", 1, "--warmup", 0, ok=False)
             self.assertIn("Successful: 0 Failed/uncompleted: 3", out)
 
     def test_warmup_failure_releases_all_workers(self):
         with server("error") as fixture:
-            out = run("server_load", "--port", fixture.server_address[1], "--command", "GET_MISS",
+            out = run("server_load", "--socket", fixture.server_address, "--command", "GET_MISS",
                       "--clients", 4, "--requests", 8, "--warmup", 1, ok=False)
             self.assertIn("Successful: 0 Failed/uncompleted: 8", out)
 

@@ -1,5 +1,5 @@
 #include "database.h"
-
+# define MAX_MEMORY_ALLOWED 123455123//Test value
 
 
 Database::Database(): running_(true){
@@ -16,15 +16,22 @@ Database::~Database(){
     expiration_thread.join();
 }
 
+constexpr size_t overhead=sizeof(uint64_t)+sizeof(uint8_t);
 
 
-void Database::set(std::string key, const Value& value) {
+SetResult Database::set(std::string key, const Value& value) {
+    //check memory first!
+    size_t estimated_cost = sizeof(value)+sizeof(key)+overhead;
+    
+    if(accounted_memory+estimated_cost>MAX_MEMORY_ALLOWED) return SetResult::MemoryLimitExceeded;
+    accounted_memory+=estimated_cost;
     std::scoped_lock lock(expiration_mutex_);
     if (auto it = expiration_entries_.find(key); it != expiration_entries_.end()) {
         expiration_heap_.remove(it->second);
         expiration_entries_.erase(it);
     }
     cache_.insert(key, Val{value, std::nullopt});
+    return SetResult::Success;
 }
 
 std::optional<Value> Database::get(const std::string& key){
@@ -47,5 +54,10 @@ bool Database::erase(const std::string& key){
         expiration_heap_.remove(it->second);
         expiration_entries_.erase(it);
     }
+    std::optional<Value> val;
+    cache_.with_read(key, [&](const Val& entry) {
+        val = entry.data;
+    });
+    accounted_memory-=overhead+sizeof(val.has_value()?val.value():0);
     return cache_.erase(key);
 }

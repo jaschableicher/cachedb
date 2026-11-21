@@ -17,7 +17,7 @@ import time
 
 
 MODES = ("GET", "SET", "MIX")
-SERVER_PORT = 5634  # TCPServer's current listening port.
+SERVER_SOCKET = "/tmp/cachedb.sock"  # UDS server's current listening path.
 METRICS = re.compile(
     r"Status: OK\b.*?Throughput: ([\d.]+) req/s\n"
     r"Latency \(successful requests\): p50: ([\d.]+) us "
@@ -52,11 +52,13 @@ def wait_for_server(process):
         if process.poll() is not None:
             raise RuntimeError(f"cache_db exited during startup (code {process.returncode})")
         try:
-            with socket.create_connection(("127.0.0.1", SERVER_PORT), timeout=0.2):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(0.2)
+                connection.connect(SERVER_SOCKET)
                 return
         except OSError:
             time.sleep(0.1)
-    raise RuntimeError("cache_db did not open port 5634 within 15 seconds")
+    raise RuntimeError(f"cache_db did not open UDS socket {SERVER_SOCKET} within 15 seconds")
 
 
 def server_benchmark(binary, mode, args, output_dir, server_binary):
@@ -67,7 +69,7 @@ def server_benchmark(binary, mode, args, output_dir, server_binary):
             )
             try:
                 wait_for_server(process)
-                return benchmark(binary, mode, [*args, "--port", str(SERVER_PORT)], output_dir, workdir)
+                return benchmark(binary, mode, [*args, "--socket", SERVER_SOCKET], output_dir, workdir)
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -86,8 +88,8 @@ def report(results, requests, clients, keys, value_size, warmup):
         f"Commit: `{sha}`  ",
         f"Workload: {requests:,} requests, {clients} clients, {keys:,} keys, "
         f"{value_size}-byte values, {warmup} warmup operations per client; "
-        "TCP pipeline depth 1.  ",
-        "Build: `linux-prod` (Release). Each TCP workload uses a fresh server and data directory.",
+        "UDS pipeline depth 1.  ",
+        "Build: `linux-prod` (Release). Each UDS workload uses a fresh server and data directory.",
         "",
         "| Benchmark | Command | Throughput (req/s) | p50 (µs) | p95 (µs) | p99 (µs) | Status |",
         "| --- | --- | ---: | ---: | ---: | ---: | --- |",
@@ -104,7 +106,7 @@ def report(results, requests, clients, keys, value_size, warmup):
             lines.append(f"| `{item['benchmark']}` | {item['mode']} | — | — | — | — | {error} |")
     lines.extend([
         "",
-        "`database_load` measures direct database calls; `server_load` includes the TCP server "
+        "`database_load` measures direct database calls; `server_load` includes the UDS server "
         "and protocol. These are single-run measurements on the current runner.",
         "",
     ])

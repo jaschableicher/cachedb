@@ -1,0 +1,159 @@
+//TODO: Server integration tests to check wether the server is running correctly and responds correctly
+// Basically what the api/sdk must do later
+
+#include <gtest/gtest.h>
+#include <string>
+#include <cstring>
+#include <thread>
+#include <chrono>
+#include <atomic>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+#include "database/database.h"
+#include "commands/command.h"
+#include "protocol/protocol.h"
+#include "server/uds.h"
+
+class UDSIntegrationTests : public ::testing::Test {
+protected:
+    static inline Database db{};
+    static inline UDS server{db};
+    static inline std::thread server_thread;
+
+    static void SetUpTestSuite() {
+
+        // Run server on background thread
+        server_thread = std::thread([]() {
+            server.run();
+        });
+
+        // Give the server a brief moment to bind to 5634
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    static void TearDownTestSuite() {
+        std::cout <<"Stopping test suite" << std::endl;
+        server.stop();
+        if (server_thread.joinable()) {
+            server_thread.join();
+        }
+    }
+
+    int Connect() {
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock < 0) return -1;
+
+        // 1-second timeout so the test never hangs
+        struct timeval tv{.tv_sec = 1, .tv_usec = 0};
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        const char* path = "/tmp/cachedb.sock";
+
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+
+        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(sock);
+            return -1;
+        }
+        return sock;
+    }
+
+    Value SendAndReceive(const Command& command) {
+        const int socket_fd = Connect();
+        if (socket_fd < 0) return Null{};
+        Value response = SendAndReceive(socket_fd, command);
+        close(socket_fd);
+        return response;
+    }
+
+    Value SendAndReceive(int socket_fd, const Command& command) {
+        msgpack::sbuffer payload;
+        msgpack::packer<msgpack::sbuffer> writer(payload);
+        writer.pack_array(2);
+        writer.pack(command.name);
+        writer.pack_array(static_cast<uint32_t>(command.args.size()));
+        for (const auto& arg : command.args) {
+            auto encoded = protocol::encode_value(arg);
+            auto value = msgpack::unpack(encoded.data(), encoded.size());
+            writer.pack(value.get());
+        }
+        const auto frame = protocol::frame_payload(payload);
+
+        std::size_t sent = 0;
+        while (sent < frame.size()) {
+            const ssize_t count = send(socket_fd, frame.data() + sent, frame.size() - sent, MSG_NOSIGNAL);
+            if (count <= 0) {
+                return Null{};
+            }
+            sent += static_cast<std::size_t>(count);
+        }
+
+        auto receive_exactly = [&](char* data, std::size_t size) {
+            std::size_t received = 0;
+            while (received < size) {
+                const ssize_t count = recv(socket_fd, data + received, size - received, 0);
+                if (count <= 0) return false;
+                received += static_cast<std::size_t>(count);
+            }
+            return true;
+        };
+
+        unsigned char header[4];
+        if (!receive_exactly(reinterpret_cast<char*>(header), sizeof(header))) {
+            return Null{};
+        }
+
+        const uint32_t response_size =
+            (static_cast<uint32_t>(header[0]) << 24) |
+            (static_cast<uint32_t>(header[1]) << 16) |
+            (static_cast<uint32_t>(header[2]) << 8) |
+             static_cast<uint32_t>(header[3]);
+
+        std::vector<char> response(response_size);
+        if (!receive_exactly(response.data(), response.size())) {
+            return Null{};
+        }
+
+        auto decoded = msgpack::unpack(response.data(), response.size());
+        return protocol::decode_value(decoded.get());
+    }
+};
+
+// --- Test Cases ---
+TEST_F(UDSIntegrationTests, ServerAnswers) {
+    // Verifies the server's outer accept loop correctly handles new connections
+    Value response = SendAndReceive(Command{.name = "whatever", .args = {}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response));
+    EXPECT_FALSE(std::get<std::string>(response).empty());
+}
+TEST_F(UDSIntegrationTests, SetAndGetValue) {
+    Value response = SendAndReceive(Command{.name = "SET", .args = {std::string("hello"), std::string("world")}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response));
+    EXPECT_EQ(std::get<std::string>(response), "OK");
+    Value response2 = SendAndReceive(Command{.name = "GET", .args = {std::string("hello")}});
+    ASSERT_TRUE(std::holds_alternative<std::string>(response2));
+    EXPECT_EQ(std::get<std::string>(response2), "world");
+}
+
+TEST_F(UDSIntegrationTests, MultipleCommandsOnSameConnection) {
+    const int socket_fd = Connect();
+    ASSERT_GE(socket_fd, 0);
+
+    const std::string key = "persistent_connection";
+    const std::string value = "a reply longer than OK";
+    const Value set_response = SendAndReceive(socket_fd, Command{.name = "SET", .args = {key, value}});
+    const Value first_get = SendAndReceive(socket_fd, Command{.name = "GET", .args = {key}});
+    const Value second_get = SendAndReceive(socket_fd, Command{.name = "GET", .args = {key}});
+    close(socket_fd);
+
+    ASSERT_TRUE(std::holds_alternative<std::string>(set_response));
+    EXPECT_EQ(std::get<std::string>(set_response), "OK");
+    ASSERT_TRUE(std::holds_alternative<std::string>(first_get));
+    EXPECT_EQ(std::get<std::string>(first_get), value);
+    ASSERT_TRUE(std::holds_alternative<std::string>(second_get));
+    EXPECT_EQ(std::get<std::string>(second_get), value);
+}
