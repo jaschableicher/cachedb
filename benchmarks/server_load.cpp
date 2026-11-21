@@ -10,7 +10,7 @@
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
-
+#include <sys/un.h> 
 namespace {
 constexpr std::size_t max_frame = 16 * 1024 * 1024;
 enum class Expected { Ok, Value, Missing, Deleted };
@@ -85,16 +85,16 @@ class Connection {
     }
 public:
     explicit Connection(const load::Options& options) : timeout_ms_(static_cast<int>(options.timeout_ms)) {
-        fd_ = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        const char* path = "/tmp/cachedb.sock";
+
+        fd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         if (fd_ < 0) fail("socket");
         try {
-            const int enabled = 1;
-            if (setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &enabled, sizeof(enabled)) < 0) fail("TCP_NODELAY");
-            sockaddr_in address{};
-            address.sin_family = AF_INET;
-            address.sin_port = htons(static_cast<uint16_t>(options.port));
-            if (inet_pton(AF_INET, options.host.c_str(), &address.sin_addr) != 1)
-                throw std::runtime_error("--host must be an IPv4 address");
+            sockaddr_un address{};
+            address.sun_family = AF_UNIX;
+            std::strncpy(address.sun_path, path, sizeof(address.sun_path) - 1);
+
+
             if (connect(fd_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
                 if (errno != EINPROGRESS) fail("connect");
                 wait(POLLOUT, load::Clock::now());
