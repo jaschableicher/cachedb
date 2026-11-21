@@ -7,6 +7,7 @@ constexpr int NUM_WORKERS = 4;
 //TODO: Test on home device with different configuration!
 
 #include <fcntl.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 
 
@@ -21,7 +22,7 @@ TCPServer::TCPServer(Database& db): db_(db), is_running_(true){
     }
     //Configure tcp_server
     int opt = 1;
-    setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(socket_, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
     
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
