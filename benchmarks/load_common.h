@@ -35,6 +35,7 @@ struct Options {
     std::size_t port = 5634;
     std::size_t timeout_ms = 5'000;
     std::string host = "127.0.0.1";
+    std::string socket_path = "/tmp/cachedb.sock";
     Mode mode = Mode::Get;
 };
 inline const char* mode_name(Mode mode) {
@@ -58,6 +59,7 @@ inline void usage(const char* executable, bool network) {
         << "  --read-percent N  GET percentage in MIX, 0..100 (default: 50)\n";
     if (network) {
         std::cout << "  --pipeline N      Requests per pipeline batch (default: 1)\n"
+            << "  --socket PATH     UDS socket path (default: /tmp/cachedb.sock)\n"
             << "  --host IPv4       Server address (default: 127.0.0.1)\n"
             << "  --port N          Server port (default: 5634)\n"
             << "  --timeout-ms N    Socket inactivity timeout (default: 5000)\n";
@@ -89,6 +91,7 @@ inline Options parse(int argc, char** argv, bool network) {
             else throw std::runtime_error("Unknown command: " + name);
             continue;
         }
+        if (network && flag == "--socket") { options.socket_path = value; continue; }
         if (network && flag == "--host") { options.host = value; continue; }
         std::size_t parsed = 0;
         if (!number(value, parsed)) throw std::runtime_error("Invalid number for " + std::string(flag));
@@ -242,7 +245,7 @@ inline void describe(const Options& options, const Workload& workload, bool netw
     std::cout << "Mode: " << mode_name(options.mode) << " Keys: " << (options.mode == Mode::Set ? std::string("unique inserts") : std::to_string(options.keys))
         << " Value bytes: " << options.value_size << " Warmup/worker: " << options.warmup
         << " Prefix: " << workload.prefix;
-    if (network) std::cout << " Server: " << options.host << ':' << options.port << " Pipeline: " << options.pipeline;
+    if (network) std::cout << " Server: " << options.socket_path << " Pipeline: " << options.pipeline;
     std::cout << "\nPreparing workload...\n" << std::flush;
 }
 } // namespace load

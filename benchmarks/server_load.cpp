@@ -85,14 +85,15 @@ class Connection {
     }
 public:
     explicit Connection(const load::Options& options) : timeout_ms_(static_cast<int>(options.timeout_ms)) {
-        const char* path = "/tmp/cachedb.sock";
+        if (options.socket_path.empty() || options.socket_path.size() >= sizeof(sockaddr_un{}.sun_path))
+            throw std::runtime_error("Invalid UDS socket path");
 
         fd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         if (fd_ < 0) fail("socket");
         try {
             sockaddr_un address{};
             address.sun_family = AF_UNIX;
-            std::strncpy(address.sun_path, path, sizeof(address.sun_path) - 1);
+            std::strncpy(address.sun_path, options.socket_path.c_str(), sizeof(address.sun_path) - 1);
 
 
             if (connect(fd_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
