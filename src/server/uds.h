@@ -18,7 +18,7 @@
 #include <sys/epoll.h>
 #include "utils.h"
 #include "client_pool.h"
-#include "server_interface.h"
+#include "server.h"
 //Switch to singleton? as usually only one server or not?
 //Running TCP server which simply accepts commands
 class UDS : public Server{

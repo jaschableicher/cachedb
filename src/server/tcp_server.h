@@ -9,7 +9,7 @@
 #include <sys/epoll.h>
 #include "utils.h"
 #include "client_pool.h"
-#include "server_interface.h"
+#include "server.h"
 
 class TCP: public Server{
 public:

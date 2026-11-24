@@ -1,7 +1,7 @@
 #include <iostream>
 #include "database/database.h"
 #include "executor.h"
-#include "server/server.h"
+#include "server/tcp_server.h"
 #include "server/uds.h"
 #include "logger/logger.h"
 #include <thread>
