@@ -18,26 +18,18 @@
 #include <sys/epoll.h>
 #include "utils.h"
 #include "client_pool.h"
+#include "server_interface.h"
 //Switch to singleton? as usually only one server or not?
 //Running TCP server which simply accepts commands
-class UDS{
+class UDS : public Server{
 public:
     explicit UDS(Database& db);
     ~UDS();
-    // Run once. Stop and join the calling thread before destroying the server.
-    void run();
-    void stop();
-private:
-    Database& db_;
-    std::atomic<bool> is_running_;
 
-    int socket_=-1;
-    int epoll_fd = -1;
+private:
     struct sockaddr_un server_addr;
     const char* path = "/tmp/cachedb.sock";
 
-    std::vector<std::unique_ptr<ClientWorker>> workers;
-    size_t next_worker = 0;
 };
 
 
