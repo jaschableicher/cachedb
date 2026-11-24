@@ -55,6 +55,7 @@ add_library(cache_db_core
     src/protocol/payload.cpp
     src/logger/replayer.cpp
     src/server/uds.cpp
+    src/server/tcp_server.cpp
 
 )
 target_include_directories(cache_db_core PUBLIC
