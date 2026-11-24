@@ -12,7 +12,7 @@
 #include "database/database.h"
 #include "commands/command.h"
 #include "protocol/protocol.h"
-#include "server/server.h"
+#include "server/tcp_server.h"
 
 class ServerIntegrationTest : public ::testing::Test {
 protected:
@@ -20,7 +20,7 @@ protected:
     static constexpr const char* HOST = "127.0.0.1";
 
     static inline Database db{};
-    static inline TCPServer server{db};
+    static inline TCP server{db};
     static inline std::thread server_thread;
 
     static void SetUpTestSuite() {
