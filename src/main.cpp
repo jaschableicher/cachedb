@@ -24,14 +24,14 @@ int main() {
     std::signal(SIGTERM, signal_handler);
     register_commands();
     Database db;
-    TCPServer server(db);
+    TCP server(db);
     UDS uds_server(db);
     //replay database.aof cache
     //on a clean exit the last command on database.aof must be SAVE for the datadump
     //If no SAVE existed, the programm crashed so recover the latest datadump and then from the last SAVE replay the commands
     //Then if
     Logger::get_instance()->replay_commands(db);
-    std::thread server_thread(&TCPServer::run, &server);
+    std::thread server_thread(&TCP::run, &server);
     std::thread uds_thread(&UDS::run, &uds_server);
     while (g_running.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
