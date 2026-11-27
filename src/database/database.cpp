@@ -61,3 +61,7 @@ bool Database::erase(const std::string& key){
     accounted_memory-=overhead+sizeof(val.has_value()?val.value():0);
     return cache_.erase(key);
 }
+
+const size_t Database::get_accounted_memory() const{
+    return accounted_memory;
+}

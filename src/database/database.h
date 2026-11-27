@@ -46,7 +46,7 @@ public:
         int64_t expires_in_seconds
     );
     int64_t get_expiry(const std::string& key);
-
+    const size_t get_accounted_memory() const;
 
     //Memory Dumps
     bool create_memory_snapshot(std::string& filename);
@@ -71,6 +71,8 @@ private:
 
     bool delete_if_expired(const Val* cache_value, const std::string& key);
     void active_expiration_check();
+
+    
 };
 
 #endif
