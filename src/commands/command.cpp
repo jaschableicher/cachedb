@@ -146,4 +146,31 @@ void register_commands() {
 
         }
     });
+    registry->register_command({
+        .id=9,
+        .name="PING",
+        .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
+            return "PONG";
+        }
+    });
+    registry->register_command({
+        .id=10,
+        .name="EXISTS",
+        .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
+            const auto& key = std::get<std::string>(args[0]);
+            auto value = ctx.db.get(key);
+
+            if (!value) return false;
+            return true;
+        }
+    });
+
+    registry->register_command({
+        .id=11,
+        .name="DBSIZE",
+        .handler=[](CommandContext& ctx, std::span<const Value> args) -> Value{
+            return ctx.db.get_accounted_memory();
+        }
+    });
+
 }
